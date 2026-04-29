@@ -1,0 +1,52 @@
+# yantra — library entry point.
+#
+# This file exports the Session / Selector / Action primitives used by
+# `.tcyr` test files and the web/mobile backends that fill in later.
+# Keep it free of top-level `main()` / syscall(60) — yantra is a
+# LIBRARY. `cyrius distlib` concatenates this file (and future
+# `src/web.cyr` / `src/mobile.cyr` / `src/protocol/*.cyr`) into
+# `dist/yantra.cyr`, which downstream `.tcyr` files include.
+#
+# Scaffolded 2026-04-23. The session primitives live here first; the
+# browser and mobile backends fill in against stdlib `http.cyr` +
+# `ws.cyr` + `json.cyr` + `tls.cyr` as each lands. See
+# [docs/adr/0001-yantra-is-a-library-not-a-framework.md] for the
+# shape decision.
+
+# --- Selector ---------------------------------------------------------------
+# Selectors address UI elements. String-based, with a prefix hint:
+#   "#id"       CSS id selector
+#   ".class"    CSS class selector
+#   "@id/name"  Android UiAutomator2 resource-id
+#   "~label"    iOS XCUITest accessibility label
+#   "text:foo"  visible-text match (browser + mobile)
+#   otherwise   generic CSS / XPath (auto-detected by leading `/`)
+#
+# Selectors are opaque strings here; each backend parses them into its
+# own query shape.
+
+# --- Session ----------------------------------------------------------------
+# A session is a running browser page or mobile app attached to a
+# single target. Consumers get a session by calling
+# yantra_web_open(browser) or yantra_mobile_open(platform, package),
+# and close it with yantra_close(session).
+#
+# Layout (24 bytes):
+#   +0   kind      (i64: 1=web, 2=mobile)
+#   +8   backend   (ptr to backend-specific state)
+#   +16  flags     (i64: auto_wait, strict, etc.)
+var YANTRA_KIND_WEB    = 1;
+var YANTRA_KIND_MOBILE = 2;
+
+fn yantra_session_kind(s)    { return load64(s); }
+fn yantra_session_backend(s) { return load64(s + 8); }
+fn yantra_session_flags(s)   { return load64(s + 16); }
+
+# --- Placeholder dispatch ---------------------------------------------------
+# Real open/navigate/click/type/tap/close land when the web and mobile
+# backends do. Current scaffold exports just the stable primitives so
+# downstream `.tcyr` consumers can compile against a known surface.
+
+fn yantra_version() {
+    return "0.1.0";
+}

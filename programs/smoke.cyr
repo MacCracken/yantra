@@ -1,0 +1,22 @@
+# programs/smoke.cyr — compile-time proof that src/main.cyr links clean.
+#
+# yantra is a library — there is no CLI binary. This program exists so
+# `cyrius build programs/smoke.cyr build/yantra-smoke` can verify the
+# full include chain parses and links without error. The emitted
+# binary writes a one-line banner and exits 0.
+#
+# Real use is via `.tcyr` test files that `include "lib/yantra.cyr"`
+# (vendored by `cyrius deps` from `dist/yantra.cyr`) and call the
+# session / selector / action primitives defined in src/main.cyr.
+
+include "src/main.cyr"
+
+fn main() {
+    alloc_init();
+    var banner = "yantra smoke: src/main.cyr linked clean\n";
+    syscall(1, 1, banner, strlen(banner));
+    return 0;
+}
+
+var exit_code = main();
+syscall(60, exit_code);

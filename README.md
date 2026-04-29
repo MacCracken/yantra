@@ -1,0 +1,60 @@
+# yantra
+
+> **Sovereign UI automation** — browser + mobile, as a Cyrius library.
+
+**yantra** (Sanskrit यन्त्र — *instrument, device, automation machine*) is a library that lets `.tcyr` test files drive browsers and mobile devices. It is **not** a test framework. `cyrius test` stays the runner. yantra just adds the verbs.
+
+The refusal is of the *ecosystem pattern* (separate test framework, separate runner, separate CI path — Selenium/Playwright/Appium's shape), not of the *testing activity*. Your existing test runner is enough.
+
+## What a test looks like
+
+```cyrius
+# tests/login_e2e.tcyr
+include "lib/yantra.cyr"
+
+fn test_login_redirects_to_dashboard() {
+    var session = yantra_web_open("chromium");
+    yantra_navigate(session, "https://example.com/login");
+    yantra_type(session, "#username", "alice");
+    yantra_type(session, "#password", "secret");
+    yantra_click(session, "button[type=submit]");
+    assert_streq(yantra_url(session), "https://example.com/dashboard", "redirect");
+    yantra_close(session);
+}
+
+var exit_code = test_login_redirects_to_dashboard();
+syscall(60, exit_code);
+```
+
+Same assertions, same runner, same `cyrius test` invocation — yantra just gave the test the ability to drive the browser.
+
+Mobile shape is identical:
+
+```cyrius
+var session = yantra_mobile_open("android", "com.example.app");
+yantra_tap(session, "@id/login_button");
+```
+
+## Modules
+
+- `src/web.cyr` — browser automation (Chromium via CDP; Firefox/WebKit via WebDriver W3C)
+- `src/mobile.cyr` — mobile automation (Android via UiAutomator2; iOS via XCUITest)
+- `src/protocol/cdp.cyr` — Chrome DevTools Protocol (WebSocket frames)
+- `src/protocol/webdriver.cyr` — W3C WebDriver JSON wire protocol
+- `src/protocol/appium.cyr` — Appium JSON-RPC dialect
+
+## Status
+
+**0.1.0 — scaffold.** Module skeletons + session / selector / action primitives land first. Browser and mobile backends are stubbed until the HTTP + WebSocket transport crates (or stdlib additions) land.
+
+## Build
+
+```sh
+cyrius deps
+cyrius build src/main.cyr build/yantra
+cyrius test src/test.cyr
+```
+
+## License
+
+GPL-3.0-only.
