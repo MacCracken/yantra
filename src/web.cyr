@@ -239,8 +239,13 @@ fn _web_caps_firefox(): i64 {
     store8(b + o, 0);
     return b;
 }
+# WebKit rides WebKitGTK's WebKitWebDriver, which advertises browserName
+# "WebKitGTK" — so a hardcoded "webkit" (a Playwright-ism, not a WebDriver
+# browser name) fails W3C capability matching at New Session. Omit browserName
+# entirely: the endpoint already *is* the WebKit browser, so "match whatever
+# this driver controls" is both spec-correct and what yantra means by "webkit".
 fn _web_caps_webkit(): i64 {
-    return "{\"capabilities\":{\"alwaysMatch\":{\"browserName\":\"webkit\"}}}";
+    return "{\"capabilities\":{\"alwaysMatch\":{}}}";
 }
 # Apple's safaridriver (built into macOS) uses browserName "safari" — distinct
 # from Playwright's "webkit" (webkitwebdriver/MiniBrowser). Run the driver with

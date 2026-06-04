@@ -34,13 +34,26 @@ Linux WebKitGTK build is not the WebKit yantra users target anyway.
 - So the WebKitGTK job is kept as a best-effort signal (it still runs and its
   result is visible) without letting an environment quirk redden the pipeline.
 
+## Fix applied (0.6.2) — omit browserName
+
+`_web_caps_webkit` no longer sends `browserName: "webkit"`; it sends an empty
+`alwaysMatch` (`{"capabilities":{"alwaysMatch":{}}}`). Per the W3C matching
+algorithm, an absent `browserName` matches whatever browser the endpoint
+controls — which for a WebKit WebDriver *is* WebKit — so the New Session is no
+longer rejected on a name mismatch. This is also more correct than the old
+hardcode: `"webkit"` was a Playwright label, never a real WebDriver browser
+name, and yantra's webkit path is defined to target webkitwebdriver. The change
+only touches the webkit caps; chromedriver / geckodriver / safaridriver keep
+their explicit browserName.
+
+This fix is **reasoned from the spec, not yet verified against a live
+WebKitWebDriver** (none was available locally). So the CI job keeps
+`continue-on-error: true` for now — it still runs and reports its real
+pass/fail, just without reddening the pipeline.
+
 ## Exit criteria
 
-Make the job gate again once one of these lands:
-- a CI recipe that gives WebKitWebDriver a browser binary it accepts and reach a
-  green New Session (likely `webkitgtk:browserOptions` + MiniBrowser, supplied
-  CI-side without changing yantra's cap), **or**
-- a yantra-side option to override the WebDriver `browserName` per session
-  (so the public default stays `"webkit"` but CI can request `"WebKitGTK"`).
-
-Until then, remove `continue-on-error` only when the job is reliably green.
+Remove `continue-on-error` once the job is reliably green in CI (the omit-
+browserName fix is expected to get it there; confirm on the next run). If it
+still fails after that, the remaining likely cause is environmental — Xvfb /
+missing MiniBrowser binary on the runner — not yantra's caps.

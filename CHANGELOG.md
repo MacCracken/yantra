@@ -16,12 +16,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - **Firefox** via geckodriver (`tests/e2e/firefox-smoke.tcyr`) — headless
     through yantra's `-headless` cap, no display needed.
   - **WebKit** via WebKitWebDriver / WebKitGTK (`tests/e2e/webkit-smoke.tcyr`),
-    run under Xvfb (`webkit2gtk-driver` has no headless cap). **Non-blocking**
-    (`continue-on-error`): WebKitGTK advertises `browserName "WebKitGTK"`, which
-    the W3C matcher rejects against yantra's Playwright-style `"webkit"` cap, and
-    headless WebKitGTK in hosted CI is brittle. The WebDriver wire is already
-    gated by chromedriver + geckodriver, and WebKit's authoritative coverage is
-    the iOS path — see `docs/architecture/004-webkitgtk-ci-is-non-blocking.md`.
+    run under Xvfb (`webkit2gtk-driver` has no headless cap). Currently
+    **non-blocking** (`continue-on-error`) while the fix below is confirmed in
+    CI — the WebDriver wire is already gated by chromedriver + geckodriver, and
+    WebKit's authoritative coverage is the iOS path. See
+    `docs/architecture/004-webkitgtk-ci-is-non-blocking.md`.
   - **Android** via `reactivecircus/android-emulator-runner` (api-34 /
     google_apis / x86_64, KVM) + Appium/UiAutomator2.
   - **iOS** via `macos-latest` + a runner-matched simulator (the job picks the
@@ -34,7 +33,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `bench-history.csv` (normalized ns, AGNOS one-row-per-bench convention) as a
   build artifact.
 
+### Fixed
+- **WebKit session-create.** `_web_caps_webkit` no longer sends
+  `browserName: "webkit"` (a Playwright label, not a real WebDriver browser
+  name) — it sends an empty `alwaysMatch`, which the W3C matcher accepts against
+  WebKitGTK's `WebKitWebDriver` (advertised as `"WebKitGTK"`). Other drivers
+  keep their explicit browserName. (Reasoned from spec; verified once CI's
+  WebKit job goes green.)
+
 ### Changed
+- **Toolchain pin → 6.0.61** (from 6.0.59). 6.0.61 repairs the macOS lib-snapshot
+  layout that broke `cyrius lib sync` on the iOS runner
+  (`snapshot lib not found at …/versions/<v>/lib`); it ships all platforms
+  (x86_64/aarch64 × linux/macos + windows), so it stays the cross-platform floor.
 - **`setup-cyrius` now installs via the canonical `scripts/install.sh`** so the
   same action serves the Linux (web/Android) and macOS (iOS) jobs. That
   installer is itself OS/arch-aware — it detects the platform, downloads the

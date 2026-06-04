@@ -11,10 +11,14 @@ e2e suite now runs against all five backends on every push/PR: Chromium (CDP) +
 chromedriver, **Firefox** (geckodriver), **WebKit** (WebKitWebDriver under Xvfb),
 **Android** (`android-emulator-runner`, api-34/google_apis/x86_64 + Appium), and
 **iOS** (`macos-latest` + a runner-matched simulator + Appium). `setup-cyrius` is
-now OS/arch-aware (x86_64-linux + aarch64-macos). New `scripts/parity-appium.py`
-(mobile parity, mirrors the web `parity-playwright.mjs`); bench-history CSV
-uploaded as a CI artifact. New e2e: `tests/e2e/firefox-smoke.tcyr`,
-`webkit-smoke.tcyr`.
+now installed via the canonical OS-aware `scripts/install.sh` (serves both the
+Linux and macOS runners). New `scripts/parity-appium.py` (mobile parity, mirrors
+the web `parity-playwright.mjs`); bench-history CSV uploaded as a CI artifact.
+New e2e: `tests/e2e/firefox-smoke.tcyr`, `webkit-smoke.tcyr`. **Pin → 6.0.61**
+(repairs the macOS lib-snapshot layout that broke `cyrius lib sync` on the iOS
+runner). WebKit caps fix: omit `browserName` so WebKitGTK's driver accepts the
+session (WebKit CI job stays non-blocking until confirmed green — architecture
+004).
 
 **0.6.1** — 2026-06-04. **M3 — Android Appium backend now LIVE.**
 `tests/e2e/android-appium-smoke.tcyr` passes **4/4** against a live android-34 /
@@ -64,8 +68,10 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.0.59` (in `cyrius.cyml [package].cyrius`) — ports `net.cyr`
-  to Darwin (macOS networking). Vendored `lib/`
+- **Cyrius pin**: `6.0.61` (in `cyrius.cyml [package].cyrius`) — repairs the
+  macOS lib-snapshot layout (`cyrius lib sync` on the iOS runner); carries the
+  6.0.59 Darwin `net.cyr` port. Ships all platforms (x86_64/aarch64 ×
+  linux/macos + windows), so it stays the cross-platform floor. Vendored `lib/`
   is gitignored and materialized with `cyrius lib sync`.
 - **Bundled sandhi**: 1.4.1 (includes the `Connection: close` Content-Length
   framing fix that yantra's M2 WebDriver backend depends on).
