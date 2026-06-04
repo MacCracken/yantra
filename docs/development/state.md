@@ -6,9 +6,11 @@
 
 ## Version
 
-**0.2.0** (in development) — opened 2026-06-03. The toolchain/CI/benchmark
-modernization landed here and 0.2.0 ships with the M1 (Chromium/CDP) and M2
-(Firefox/WebKit WebDriver) backend work — see [roadmap.md](roadmap.md).
+**0.2.1** — released 2026-06-03. First release on the Cyrius 6.0.53 toolchain:
+the modernized build/CI/release pipeline, the benchmark system, and the **M1
+Chromium/CDP backend** (yantra's first live browser-automation backend). M2
+(Firefox/WebKit WebDriver) remains blocked on `http.cyr` POST depth — see
+[roadmap.md](roadmap.md).
 
 **0.1.0** — scaffolded 2026-04-23 via `cyrius init yantra` (released). Module
 skeletons + session / selector / action primitives. Browser and mobile
@@ -114,6 +116,28 @@ stdlib chain on for a local link-check.
 - `examples/web-consumer/login.tcyr` + `docs/examples/` — minimal
   "hello browser" consumer reference (mabda `examples/stdlib-consumer` analog).
 
+## Benchmarks — M1 parity (Chromium/CDP vs Playwright)
+
+Measured 2026-06-03 on one box, headless Chromium 148, identical `data:` URL
+workload. yantra: `programs/benchmarks.cyr`. Playwright (Node 26, system
+Chromium): `scripts/parity-playwright.mjs`. Representative averages:
+
+| Operation | yantra (CDP) | Playwright | Note |
+|-----------|-------------:|-----------:|------|
+| `navigate` (data URL) | ~19 ms | ~19 ms | parity — both bounded by Chromium's load |
+| `eval` (querySelector) | ~0.3 ms | ~0.6 ms | yantra ~2× |
+| `click` | ~0.3 ms | ~33 ms | **not apples-to-apples** — Playwright's click does full actionability (visibility/stability/scroll); yantra's is existence-wait + dispatch |
+| `type` | ~0.6 ms | ~2.9 ms | yantra ~5× |
+| **flow** (navigate+click+assert) | **~21 ms** | **~67 ms** | apples-to-apples; yantra ~3× (Playwright's heavyweight click dominates) |
+
+Caveats / honesty: yantra's `click` waits only for element *existence*, not
+full actionability (visible + stable + enabled) — that richer wait is future
+work and is the main semantic gap behind the click number. Two fixes during
+M1 closeout made these numbers real: **TCP_NODELAY** on the CDP socket (each
+round trip was pinned at ~40ms by Nagle/delayed-ACK → ~0.3ms after), and a
+**5ms auto-wait poll** interval (navigate was ~43ms on a 50ms poll → ~19ms).
+The Playwright column is reproduced, never fabricated.
+
 ## Dependencies
 
 Declared in `cyrius.cyml`:
@@ -135,10 +159,10 @@ _None yet. yantra is a library for downstream `.tcyr` tests. Expected first cons
 
 See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence:
 
-1. **M1 — Chromium CDP backend** (v0.2.0). ✅ **DONE** — `src/protocol/cdp.cyr`
+1. **M1 — Chromium CDP backend** (shipped v0.2.1). ✅ **DONE** — `src/protocol/cdp.cyr`
    + `src/web.cyr` live, `tests/e2e/chromium-smoke.tcyr` green against headless
-   Chromium, bundled into `dist/yantra.cyr`. Benchmark vs Playwright still TODO
-   (needs the parity flow in `programs/benchmarks.cyr` wired to a real page).
+   Chromium, bundled into `dist/yantra.cyr`, and Playwright parity benchmarked
+   (see Benchmarks above — yantra ~3× on the flow). Full milestone closed.
 2. **M2 — Firefox + WebKit WebDriver backends** (v0.3.0). *Blocked* on
    `lib/http.cyr` POST + headers + HTTPS depth (open Cyrius-side gap; still
    GET-only at 6.0.53).

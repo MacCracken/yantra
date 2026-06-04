@@ -182,6 +182,16 @@ fn cdp_eval_bool(cdp, js): i64 {
 
 # ── connection lifecycle ────────────
 
+# Disable Nagle's algorithm on a socket. CDP is strict request/response over
+# loopback, which is the worst case for Nagle + delayed-ACK: small writes get
+# held, pinning each round trip near ~40ms. With TCP_NODELAY the round trip
+# drops to ~1ms. SYS_SETSOCKOPT=54, IPPROTO_TCP=6, TCP_NODELAY=1.
+fn _cdp_set_nodelay(fd): i64 {
+    var one = alloc(4);
+    store32(one, 1);
+    return syscall(54, fd, 6, 1, one, 4);
+}
+
 # Minimal HTTP/1.1 GET for the CDP discovery endpoint. The stdlib http_get
 # speaks HTTP/1.0, which Chromium's DevTools HTTP server silently rejects
 # (it requires HTTP/1.1 — verified: 1.0 gets an empty close, 1.1 gets a
@@ -327,6 +337,7 @@ fn cdp_connect(port): i64 {
     sock_set_recv_timeout(fd, 10, 0);
     var c_r = sock_connect(fd, INADDR_LOOPBACK(), port);
     if (is_err_result(c_r) == 1) { sock_close(fd); return 0; }
+    _cdp_set_nodelay(fd);   # kill the ~40ms Nagle/delayed-ACK round-trip tax
 
     var ws = ws_connect(fd, path, _cdp_host_hdr(port));
     if (ws_state(ws) != WS_OPEN) { sock_close(fd); return 0; }

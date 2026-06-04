@@ -1,56 +1,96 @@
 # programs/benchmarks.cyr — yantra's incumbent-parity benchmark program.
 #
-# Mirrors mabda's `programs/benchmarks.cyr` (its "Rust-v1 parity set"):
-# the place where yantra's per-operation timings get measured against the
-# same operation on the incumbent (Playwright for web, Appium for mobile)
-# on identical workloads — the receipts behind the ROADMAP M6 / v1.0
-# "published benchmark comparison" criterion.
+# Mirrors mabda's `programs/benchmarks.cyr` ("Rust-v1 parity set"): the place
+# where yantra's per-operation timings get measured against the same operation
+# on the incumbent (Playwright for web) on identical workloads — the receipts
+# behind the ROADMAP M6 / v1.0 "published benchmark comparison" criterion.
 #
-# Build + run:
+# Build + run (needs a headless Chromium on the CDP port, like the e2e):
+#   chromium --headless=new --remote-debugging-port=9222 about:blank &
 #   cyrius build programs/benchmarks.cyr build/yantra-benchmarks
 #   ./build/yantra-benchmarks
 #
-# STATUS: scaffold. The parity flows below need a live backend (M1
-# Chromium/CDP first). Until one lands this program prints the planned
-# matrix and runs the primitive micro-benchmarks that exist today, then
-# exits 0 so it stays green in CI. Fast-path micro-benchmarks live in
-# `tests/yantra.bcyr`; this program is the end-to-end comparison harness.
+# Times the REAL CDP operations end to end (each is a JSON-RPC round trip over
+# the WebSocket to Chromium): navigate, querySelector eval, click, type, and a
+# full navigate+click+assert flow. Fast-path primitive micro-benchmarks live
+# in `tests/yantra.bcyr`; this program is the end-to-end comparison harness.
+#
+# The Playwright column of the parity table is produced by
+# `scripts/parity-playwright.mjs` (same flow, Node + Playwright) on a machine
+# that has them — this program prints only yantra's measured numbers; it never
+# fabricates the incumbent side.
+#
+# Without a live browser it prints the planned matrix and exits 0 so the build
+# stays green in CI / the link-check path.
 
+include "lib/net.cyr"
+include "lib/base64.cyr"
+include "lib/ws.cyr"
+include "lib/http.cyr"
+include "lib/json.cyr"
 include "lib/bench.cyr"
 include "src/main.cyr"
+include "src/protocol/cdp.cyr"
+include "src/web.cyr"
 
-var _sess = 0;
+# A self-contained page (no quotes/spaces — no percent-encoding needed).
+var _BDATA = "data:text/html,<input id=n><input type=checkbox id=c>";
+var _bsess = 0;
 
-fn b_kind()    { return yantra_session_kind(_sess); }
-fn b_version() { return yantra_version(); }
+# Zero-arg wrappers over the global session (Cyrius has no closures).
+fn _bm_nav()   { return yantra_navigate(_bsess, _BDATA); }
+fn _bm_eval()  { return yantra_eval_bool(_bsess, "(document.querySelector(\"#c\")!=null)"); }
+fn _bm_click() { return yantra_click_now(_bsess, "#c"); }
+fn _bm_type()  { return yantra_type(_bsess, "#n", "x"); }
+fn _bm_flow() {
+    yantra_navigate(_bsess, _BDATA);
+    yantra_click(_bsess, "#c");
+    return yantra_eval_bool(_bsess, "(document.querySelector(\"#c\").checked)");
+}
+
+fn _bm_run(label, fp, n): i64 {
+    var b = bench_new(label);
+    bench_run(b, fp, n);
+    bench_report(b);
+    return 0;
+}
 
 fn main() {
     alloc_init();
 
     println("=== yantra parity benchmarks ===");
     println("");
-    println("Planned comparison matrix (lands per backend — ROADMAP M6):");
+    println("Comparison matrix (yantra vs incumbent on identical workloads):");
     println("  web/chromium  navigate+click+assert   vs Playwright (Chromium)");
-    println("  web/firefox   navigate+click+assert   vs Playwright (Firefox)");
-    println("  web/webkit    navigate+click+assert   vs Playwright (WebKit)");
-    println("  mobile/android tap+assert             vs Appium (UiAutomator2)");
-    println("  mobile/ios     tap+assert             vs Appium (XCUITest)");
+    println("  web/firefox   navigate+click+assert   vs Playwright (Firefox)   [M2]");
+    println("  web/webkit    navigate+click+assert   vs Playwright (WebKit)    [M2]");
+    println("  mobile/android tap+assert             vs Appium (UiAutomator2)  [M3]");
+    println("  mobile/ios     tap+assert             vs Appium (XCUITest)      [M4]");
     println("");
-    println("No live backend yet — running available primitive benches:");
 
-    _sess = alloc(24);
-    store64(_sess, YANTRA_KIND_WEB);
-    store64(_sess + 8, 0);
-    store64(_sess + 16, 0);
+    _bsess = yantra_web_open("chromium");
+    if (_bsess == 0) {
+        println("No live Chromium on the CDP port — skipping live benchmarks.");
+        println("Start one with:  chromium --headless=new --remote-debugging-port=9222 about:blank &");
+        println("(primitive decode micro-benchmarks live in tests/yantra.bcyr)");
+        return 0;
+    }
 
-    var bk = bench_new("session_kind");
-    bench_run_batch(bk, &b_kind, 100000, 50);
-    bench_report(bk);
+    # Warm up the page + connection before timing.
+    yantra_navigate(_bsess, _BDATA);
 
-    var bv = bench_new("version");
-    bench_run_batch(bv, &b_version, 100000, 50);
-    bench_report(bv);
+    println("yantra (Chromium/CDP), per-operation round trip:");
+    _bm_run("web.navigate(data)",            &_bm_nav,   50);
+    _bm_run("web.eval(querySelector)",       &_bm_eval, 100);
+    _bm_run("web.click_now",                 &_bm_click,100);
+    _bm_run("web.type",                      &_bm_type, 100);
+    _bm_run("flow: navigate+click+assert",   &_bm_flow,  30);
 
+    yantra_close(_bsess);
+
+    println("");
+    println("Playwright column: run scripts/parity-playwright.mjs (Node) on the");
+    println("same box and drop its numbers beside these. Not fabricated here.");
     return 0;
 }
 

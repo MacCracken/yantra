@@ -23,9 +23,11 @@ fn yantra_web_cdp_port(): i64 { return _yantra_cdp_port; }
 # ── auto-wait knobs ────────────
 # Playwright's defining decision: actions wait for the element to be
 # actionable before operating. We poll the page over CDP rather than
-# sleeping blindly. ~100 tries × 50ms ≈ 5s ceiling.
-var _YANTRA_WAIT_TRIES = 100;
-var _YANTRA_WAIT_MS    = 50;
+# sleeping blindly. A CDP eval round trip is ~300us, so a 5ms poll interval
+# keeps waits snappy (navigate latency tracks the real page load, not the
+# poll granularity) without busy-spinning. ~1000 tries × 5ms ≈ 5s ceiling.
+var _YANTRA_WAIT_TRIES = 1000;
+var _YANTRA_WAIT_MS    = 5;
 
 fn _yantra_sleep_ms(ms): i64 {
     var ts = alloc(16);

@@ -2,11 +2,14 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased] — 0.2.0 dev cycle (ships with the M1/M2 backends)
+## [Unreleased]
 
-> 0.1.0 is released; this modernization opens the 0.2.0 cycle and lands
-> alongside the M1 (Chromium/CDP) and M2 (Firefox/WebKit WebDriver) work.
-> `VERSION` is now `0.2.0`.
+## [0.2.1] - 2026-06-03
+
+> First release on the Cyrius 6.0.53 toolchain. Ships the modernized
+> build/CI/release pipeline, the benchmark system, and the **M1 Chromium/CDP
+> backend** — yantra's first live browser-automation backend. (M2
+> Firefox/WebKit remains blocked on `http.cyr` POST depth.)
 
 ### Changed
 - **Toolchain bumped 5.6.17 → 6.0.53** (`cyrius.cyml [package].cyrius`).
@@ -44,6 +47,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     against live headless Chromium; gated in the CI `E2E (Chromium / CDP)` job.
   - Bundled into `dist/yantra.cyr` via the `main → cdp → web` `[lib]` order;
     `net`/`ws`/`base64`/`json` added to `[deps] stdlib`.
+  - **Performance**: set `TCP_NODELAY` on the CDP socket — each command round
+    trip was pinned near ~40ms by Nagle + delayed-ACK; now ~0.3ms. Tightened
+    the auto-wait poll to 5ms (navigate ~43ms → ~19ms).
+  - **Parity benchmark**: `programs/benchmarks.cyr` times real CDP operations
+    against live Chromium; `scripts/parity-playwright.mjs` is the reproducible
+    Playwright side. Result (same workload): yantra ~3× faster on the
+    navigate+click+assert flow (~21ms vs ~67ms), ~2–5× on eval/type, parity on
+    navigate. Numbers + caveats in `docs/development/state.md`.
 - **Benchmark system** (AGNOS convention): real `tests/yantra.bcyr`
   micro-benchmark harness; `programs/benchmarks.cyr` incumbent-parity
   program (vs Playwright/Appium) scaffold; `scripts/bench-history.sh` →
@@ -51,7 +62,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Example + E2E scaffolding** (modeled on mabda 3.0.1): minimal
   `examples/web-consumer/login.tcyr` "hello browser" reference,
   `docs/examples/README.md` index, and `tests/e2e/chromium-smoke.tcyr`
-  (the M1 acceptance test, held out until the CDP backend lands).
+  (the M1 acceptance test — green against live headless Chromium).
 - **Governance docs**: `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
   (first-party-standards root set).
 

@@ -33,14 +33,15 @@
 - Docs scaffolded per [first-party-documentation.md](https://github.com/MacCracken/agnosticos/blob/main/docs/development/applications/first-party-documentation.md)
 - Added to [shared-crates.md](https://github.com/MacCracken/agnosticos/blob/main/docs/development/applications/shared-crates.md) Pre-1.0 In Progress
 
-### M1 — Chromium CDP backend (v0.2.0) — ✅ shipped 2026-06-03
+### M1 — Chromium CDP backend (shipped v0.2.1, 2026-06-03)
 
 *First live backend. Unblocked — no dep gate.* Delivered: `src/protocol/cdp.cyr`
 (CDP over `ws.cyr`; own HTTP/1.1 discovery GET since Chromium rejects HTTP/1.0),
 `src/web.cyr` (open/navigate/click/click_now/type/url/eval/close + auto-waiting),
 `tests/e2e/chromium-smoke.tcyr` green (11/11) against headless Chromium and gated
-in the CI `E2E (Chromium / CDP)` job, bundled into `dist/yantra.cyr`. Remaining
-M1 tail: the Playwright parity benchmark (`programs/benchmarks.cyr` → a real flow).
+in the CI `E2E (Chromium / CDP)` job, bundled into `dist/yantra.cyr`. Playwright
+parity benchmarked (`programs/benchmarks.cyr` + `scripts/parity-playwright.mjs`):
+yantra ~3× on navigate+click+assert, parity on navigate — numbers in state.md.
 
 *Original scope:*
 
