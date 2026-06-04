@@ -15,10 +15,12 @@ now installed via the canonical OS-aware `scripts/install.sh` (serves both the
 Linux and macOS runners). New `scripts/parity-appium.py` (mobile parity, mirrors
 the web `parity-playwright.mjs`); bench-history CSV uploaded as a CI artifact.
 New e2e: `tests/e2e/firefox-smoke.tcyr`, `webkit-smoke.tcyr`. **Pin → 6.0.61**
-(repairs the macOS lib-snapshot layout that broke `cyrius lib sync` on the iOS
-runner). WebKit caps fix: omit `browserName` so WebKitGTK's driver accepts the
-session (WebKit CI job stays non-blocking until confirmed green — architecture
-004).
+(cross-platform floor). A cyrius macOS installer bug (≥6.0.61) leaves
+`versions/<v>/lib` unpopulated → `cyrius lib sync` fails on the iOS runner;
+`setup-cyrius` backfills the snapshot from the release tarball as a workaround
+(filed upstream). WebKit caps fix: omit `browserName` so WebKitGTK's driver
+accepts the session (WebKit CI job stays non-blocking until confirmed green —
+architecture 004).
 
 **0.6.1** — 2026-06-04. **M3 — Android Appium backend now LIVE.**
 `tests/e2e/android-appium-smoke.tcyr` passes **4/4** against a live android-34 /
@@ -68,11 +70,14 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.0.61` (in `cyrius.cyml [package].cyrius`) — repairs the
-  macOS lib-snapshot layout (`cyrius lib sync` on the iOS runner); carries the
-  6.0.59 Darwin `net.cyr` port. Ships all platforms (x86_64/aarch64 ×
+- **Cyrius pin**: `6.0.61` (in `cyrius.cyml [package].cyrius`) — carries the
+  6.0.59 Darwin `net.cyr` port; ships all platforms (x86_64/aarch64 ×
   linux/macos + windows), so it stays the cross-platform floor. Vendored `lib/`
-  is gitignored and materialized with `cyrius lib sync`.
+  is gitignored and materialized with `cyrius lib sync`. **Known cyrius bug**
+  (≥6.0.61, macOS only): the installer leaves `versions/<v>/lib` unpopulated, so
+  `cyrius lib sync` fails on macOS; `setup-cyrius` backfills the snapshot from
+  the release tarball (filed: cyrius
+  `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`).
 - **Bundled sandhi**: 1.4.1 (includes the `Connection: close` Content-Length
   framing fix that yantra's M2 WebDriver backend depends on).
 - **sigil 3.6.0 requires** `thread.cyr` + `thread_local.cyr` included before

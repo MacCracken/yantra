@@ -42,10 +42,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   WebKit job goes green.)
 
 ### Changed
-- **Toolchain pin → 6.0.61** (from 6.0.59). 6.0.61 repairs the macOS lib-snapshot
-  layout that broke `cyrius lib sync` on the iOS runner
-  (`snapshot lib not found at …/versions/<v>/lib`); it ships all platforms
+- **Toolchain pin → 6.0.61** (from 6.0.59) — ships all platforms
   (x86_64/aarch64 × linux/macos + windows), so it stays the cross-platform floor.
+- **`setup-cyrius` backfills the stdlib snapshot on macOS.** A cyrius installer
+  bug (through ≥6.0.61, macОС only) prints `standard library installed` but
+  leaves `versions/<v>/lib` unpopulated, so `cyrius lib sync` fails on the iOS
+  runner with `snapshot lib not found at …/versions/<v>/lib` (Linux is fine).
+  The action now backfills `lib/` from the release tarball when the snapshot is
+  missing — a no-op on Linux. Filed upstream as cyrius issue
+  `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`; remove the
+  workaround when it's fixed.
 - **`setup-cyrius` now installs via the canonical `scripts/install.sh`** so the
   same action serves the Linux (web/Android) and macOS (iOS) jobs. That
   installer is itself OS/arch-aware — it detects the platform, downloads the

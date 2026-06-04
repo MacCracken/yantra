@@ -46,6 +46,34 @@ runs:
         curl -sSf "https://raw.githubusercontent.com/MacCracken/cyrius/$V/scripts/install.sh" \
           | CYRIUS_VERSION="$V" sh
 
+    - name: Ensure stdlib snapshot
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        # Workaround for a cyrius macOS installer bug (through ≥6.0.61): the
+        # installer prints "standard library installed" but leaves
+        # versions/<v>/lib unpopulated on the macOS runner, so `cyrius lib sync`
+        # fails with "snapshot lib not found at …/versions/<v>/lib". (Linux is
+        # fine — verified.) Belt-and-suspenders: if the snapshot is missing,
+        # backfill lib/ straight from the release tarball. No-ops where the
+        # installer already laid it down. Drop this once the cyrius bug is fixed
+        # (cyrius issue 2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync).
+        V="${{ steps.ver.outputs.version }}"
+        LIBDIR="$HOME/.cyrius/versions/$V/lib"
+        if [ -d "$LIBDIR" ] && [ -n "$(ls -A "$LIBDIR" 2>/dev/null)" ]; then
+          echo "stdlib snapshot present ($LIBDIR)"; exit 0
+        fi
+        echo "stdlib snapshot missing at $LIBDIR — backfilling from the release tarball"
+        A="$(uname -m)"; case "$A" in arm64|aarch64) A=aarch64 ;; x86_64|amd64) A=x86_64 ;; esac
+        O="$(uname -s | tr 'A-Z' 'a-z')"; case "$O" in darwin) O=macos ;; linux) O=linux ;; esac
+        T="$A-$O"
+        WORK="$(mktemp -d)"
+        curl -sSfL "https://github.com/MacCracken/cyrius/releases/download/$V/cyrius-$V-$T.tar.gz" \
+          | tar xz -C "$WORK"
+        mkdir -p "$LIBDIR"
+        cp -R "$WORK/cyrius-$V-$T/lib/." "$LIBDIR/"
+        echo "backfilled $(ls -1 "$LIBDIR"/*.cyr 2>/dev/null | wc -l) lib files"
+
     - name: Export PATH and CYRIUS_HOME
       shell: bash
       run: |
