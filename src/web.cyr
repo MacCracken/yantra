@@ -1,0 +1,200 @@
+# src/web.cyr — yantra's browser-automation public API (M1: Chromium/CDP).
+#
+# The verbs a `.tcyr` test calls: yantra_web_open / yantra_navigate /
+# yantra_click / yantra_type / yantra_url / yantra_close, plus the no-wait
+# opt-out yantra_click_now. Backend selection lives here — M1 routes
+# "chromium" to the CDP backend in src/protocol/cdp.cyr. Firefox/WebKit
+# (WebDriver) and mobile (Appium) route in later, behind the http.cyr gate.
+#
+# No `include` directives (see cdp.cyr header) — concatenated into the
+# bundle, stdlib + main.cyr + cdp.cyr symbols resolved by the consumer /
+# the link-check program. Depends on the session primitives in main.cyr
+# (yantra_session_kind/backend/flags, YANTRA_KIND_WEB) and on cdp.cyr.
+
+# Session flag bits (stored at session +16).
+var YANTRA_FLAG_AUTOWAIT = 1;
+
+# Default CDP port (Chromium's --remote-debugging-port). Overridable so a
+# test can point at a non-default endpoint without env parsing.
+var _yantra_cdp_port = 9222;
+fn yantra_web_set_cdp_port(p): i64 { _yantra_cdp_port = p; return 0; }
+fn yantra_web_cdp_port(): i64 { return _yantra_cdp_port; }
+
+# ── auto-wait knobs ────────────
+# Playwright's defining decision: actions wait for the element to be
+# actionable before operating. We poll the page over CDP rather than
+# sleeping blindly. ~100 tries × 50ms ≈ 5s ceiling.
+var _YANTRA_WAIT_TRIES = 100;
+var _YANTRA_WAIT_MS    = 50;
+
+fn _yantra_sleep_ms(ms): i64 {
+    var ts = alloc(16);
+    store64(ts, ms / 1000);
+    store64(ts + 8, (ms % 1000) * 1000000);
+    syscall(35, ts, 0);   # nanosleep(timespec, NULL)
+    return 0;
+}
+
+# ── JS expression builders ────────────
+# The selector / text are user data embedded in a JS double-quoted string
+# literal, so they are JS-escaped here; the whole expression is then
+# JSON-escaped again by cdp.cyr when it goes on the wire. Two layers,
+# each correct for its level.
+
+# Append s to buf at off escaped for a JS double-quoted string literal.
+fn _web_b_jsesc(buf, off, s): i64 {
+    var i = 0;
+    var L = strlen(s);
+    while (i < L) {
+        var c = load8(s + i);
+        if      (c == 34) { store8(buf + off, 92); store8(buf + off + 1, 34);  off = off + 2; }
+        elif    (c == 92) { store8(buf + off, 92); store8(buf + off + 1, 92);  off = off + 2; }
+        elif    (c == 10) { store8(buf + off, 92); store8(buf + off + 1, 110); off = off + 2; }
+        elif    (c == 13) { store8(buf + off, 92); store8(buf + off + 1, 114); off = off + 2; }
+        else              { store8(buf + off, c); off = off + 1; }
+        i = i + 1;
+    }
+    return off;
+}
+
+# (document.querySelector("SEL")!=null)
+fn _web_js_exists(sel): i64 {
+    var buf = alloc(strlen(sel) * 2 + 64);
+    var o = _cdp_b_cstr(buf, 0, "(document.querySelector(\"");
+    o = _web_b_jsesc(buf, o, sel);
+    o = _cdp_b_cstr(buf, o, "\")!=null)");
+    store8(buf + o, 0);
+    return buf;
+}
+
+# (function(){var e=document.querySelector("SEL");if(!e)return false;e.click();return true;})()
+fn _web_js_click(sel): i64 {
+    var buf = alloc(strlen(sel) * 2 + 128);
+    var o = _cdp_b_cstr(buf, 0, "(function(){var e=document.querySelector(\"");
+    o = _web_b_jsesc(buf, o, sel);
+    o = _cdp_b_cstr(buf, o, "\");if(!e)return false;e.click();return true;})()");
+    store8(buf + o, 0);
+    return buf;
+}
+
+# Set value + fire input/change events, as a user typing would.
+fn _web_js_type(sel, text): i64 {
+    var buf = alloc((strlen(sel) + strlen(text)) * 2 + 256);
+    var o = _cdp_b_cstr(buf, 0, "(function(){var e=document.querySelector(\"");
+    o = _web_b_jsesc(buf, o, sel);
+    o = _cdp_b_cstr(buf, o, "\");if(!e)return false;e.focus();e.value=\"");
+    o = _web_b_jsesc(buf, o, text);
+    o = _cdp_b_cstr(buf, o, "\";e.dispatchEvent(new Event(\"input\",{bubbles:true}));");
+    o = _cdp_b_cstr(buf, o, "e.dispatchEvent(new Event(\"change\",{bubbles:true}));return true;})()");
+    store8(buf + o, 0);
+    return buf;
+}
+
+# Poll until selector matches an element, or the ceiling is hit. Returns 1/0.
+fn _web_wait_selector(cdp, sel): i64 {
+    var tries = 0;
+    var ok = 0;
+    while (tries < _YANTRA_WAIT_TRIES) {
+        if (cdp_eval_bool(cdp, _web_js_exists(sel)) == 1) { ok = 1; tries = _YANTRA_WAIT_TRIES; continue; }
+        _yantra_sleep_ms(_YANTRA_WAIT_MS);
+        tries = tries + 1;
+    }
+    return ok;
+}
+
+# Poll until document.readyState === "complete".
+fn _web_wait_ready(cdp): i64 {
+    var tries = 0;
+    var ok = 0;
+    while (tries < _YANTRA_WAIT_TRIES) {
+        var done = cdp_eval_bool(cdp, "(document.readyState===\"complete\")");
+        if (done == 1) { ok = 1; tries = _YANTRA_WAIT_TRIES; continue; }
+        _yantra_sleep_ms(_YANTRA_WAIT_MS);
+        tries = tries + 1;
+    }
+    return ok;
+}
+
+fn _web_autowait(session): i64 {
+    return yantra_session_flags(session) & YANTRA_FLAG_AUTOWAIT;
+}
+
+# ── public API ────────────
+
+# Open a browser session. M1 supports "chromium" (connects to a running
+# headless Chromium on the configured CDP port). Returns a session handle
+# or 0 on failure.
+fn yantra_web_open(browser): i64 {
+    if (streq(browser, "chromium") == 0) { return 0; }
+    var cdp = cdp_connect(_yantra_cdp_port);
+    if (cdp == 0) { return 0; }
+    var s = alloc(24);
+    store64(s, YANTRA_KIND_WEB);
+    store64(s + 8, cdp);
+    store64(s + 16, YANTRA_FLAG_AUTOWAIT);
+    return s;
+}
+
+# Navigate to url. With auto-wait, blocks until the document is complete.
+# Returns 1 on success, 0 on failure.
+fn yantra_navigate(session, url): i64 {
+    if (session == 0) { return 0; }
+    var cdp = yantra_session_backend(session);
+    if (cdp_navigate(cdp, url) == 0) { return 0; }
+    if (_web_autowait(session) != 0) { _web_wait_ready(cdp); }
+    return 1;
+}
+
+# Current page URL as a cstr, or 0.
+fn yantra_url(session): i64 {
+    if (session == 0) { return 0; }
+    return cdp_eval_str(yantra_session_backend(session), "location.href");
+}
+
+# Click the first element matching selector. With auto-wait, waits for the
+# element to exist first. Returns 1 if clicked, 0 otherwise.
+fn yantra_click(session, selector): i64 {
+    if (session == 0) { return 0; }
+    var cdp = yantra_session_backend(session);
+    if (_web_autowait(session) != 0) {
+        if (_web_wait_selector(cdp, selector) == 0) { return 0; }
+    }
+    return cdp_eval_bool(cdp, _web_js_click(selector));
+}
+
+# No-wait opt-out: click immediately, no actionability wait.
+fn yantra_click_now(session, selector): i64 {
+    if (session == 0) { return 0; }
+    return cdp_eval_bool(yantra_session_backend(session), _web_js_click(selector));
+}
+
+# Type text into the element matching selector (sets value + fires
+# input/change). With auto-wait, waits for the element first. Returns 1/0.
+fn yantra_type(session, selector, text): i64 {
+    if (session == 0) { return 0; }
+    var cdp = yantra_session_backend(session);
+    if (_web_autowait(session) != 0) {
+        if (_web_wait_selector(cdp, selector) == 0) { return 0; }
+    }
+    return cdp_eval_bool(cdp, _web_js_type(selector, text));
+}
+
+# Evaluate a JS expression in the page; return its string value as cstr (or
+# 0). The page.evaluate analog — handy for assertions in `.tcyr` tests.
+fn yantra_eval_str(session, js): i64 {
+    if (session == 0) { return 0; }
+    return cdp_eval_str(yantra_session_backend(session), js);
+}
+
+# Evaluate a JS expression in the page; return its boolean value (1/0).
+fn yantra_eval_bool(session, js): i64 {
+    if (session == 0) { return 0; }
+    return cdp_eval_bool(yantra_session_backend(session), js);
+}
+
+# Close the session and its underlying transport. Safe on 0.
+fn yantra_close(session): i64 {
+    if (session == 0) { return 0; }
+    cdp_close(yantra_session_backend(session));
+    return 0;
+}

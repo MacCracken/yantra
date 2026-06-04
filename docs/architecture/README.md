@@ -6,4 +6,4 @@ Not decisions (those live in [`../adr/`](../adr/)) and not guides (those live in
 
 ## Items
 
-_Empty. Add a numbered entry (`001-kebab-case-title.md`) the first time the code has a non-obvious invariant a reader can't derive. Do not write entries for decisions — those are ADRs._
+- [001 — Chromium's DevTools HTTP endpoint requires HTTP/1.1](001-chromium-devtools-requires-http11.md) — why the CDP backend rolls its own discovery GET instead of using stdlib `http_get`.

@@ -29,6 +29,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the reusable-workflow gate (`workflow_call`) is declared.
 
 ### Added
+- **M1 — Chromium CDP backend (first live backend).**
+  - `src/protocol/cdp.cyr` — Chrome DevTools Protocol over `lib/ws.cyr`:
+    target discovery, command build + escaping, response matching by id,
+    `cdp_eval` / `cdp_navigate` / `cdp_connect` / `cdp_close`. Issues its own
+    HTTP/1.1 `GET /json` for discovery because Chromium's DevTools HTTP server
+    rejects HTTP/1.0 (what stdlib `http_get` sends); a recv timeout backstops
+    the WebSocket read loop.
+  - `src/web.cyr` — public API: `yantra_web_open("chromium")`,
+    `yantra_navigate`, `yantra_click`, `yantra_click_now`, `yantra_type`,
+    `yantra_url`, `yantra_eval_str`, `yantra_eval_bool`, `yantra_close`, with
+    Playwright-style auto-waiting (poll for element-actionable / readyState).
+  - `tests/e2e/chromium-smoke.tcyr` — full round trip, **11/11 passing**
+    against live headless Chromium; gated in the CI `E2E (Chromium / CDP)` job.
+  - Bundled into `dist/yantra.cyr` via the `main → cdp → web` `[lib]` order;
+    `net`/`ws`/`base64`/`json` added to `[deps] stdlib`.
 - **Benchmark system** (AGNOS convention): real `tests/yantra.bcyr`
   micro-benchmark harness; `programs/benchmarks.cyr` incumbent-parity
   program (vs Playwright/Appium) scaffold; `scripts/bench-history.sh` →

@@ -1,0 +1,354 @@
+# src/protocol/cdp.cyr — Chrome DevTools Protocol over lib/ws.cyr.
+#
+# The M1 backend. CDP speaks JSON-RPC over a single WebSocket, so this
+# module needs only the WebSocket transport (lib/ws.cyr, complete) plus
+# a one-shot HTTP GET to discover the page target's debugger URL
+# (lib/http.cyr, GET-only — sufficient here). No HTTP POST, no HTTPS, so
+# M1 ships ahead of the WebDriver/Appium http.cyr depth gate.
+#
+# This file carries NO `include` directives: `cyrius distlib` concatenates
+# it into `dist/yantra.cyr`, where stdlib symbols (ws_*, http_*, json_v_*,
+# str_*, fmt_*, net) are left unresolved and supplied by the consumer's
+# `[deps] stdlib`. The link-check program (programs/smoke.cyr) includes the
+# stdlib chain ahead of this module so the whole graph type-checks locally.
+#
+# Outgoing commands are built as raw JSON strings (a small escaper handles
+# the dynamic values) — that keeps cstr in / cstr out and feeds
+# ws_send_text directly. Incoming responses are parsed with the json.cyr
+# tagged-value tree (json_v_parse_str + nested json_v_obj_get), whose
+# string values are Str-typed and converted back to cstr via _cdp_s2c.
+
+# ── small string helpers (shared with web.cyr, included after this) ────────────
+
+# Str → freshly-allocated null-terminated cstr. Returns 0 if s is 0.
+fn _cdp_s2c(s): i64 {
+    if (s == 0) { return 0; }
+    var d = str_data(s);
+    var n = str_len(s);
+    var b = alloc(n + 1);
+    memcpy(b, d, n);
+    store8(b + n, 0);
+    return b;
+}
+
+# Append a raw cstr to buf at off; return new off.
+fn _cdp_b_cstr(buf, off, s): i64 {
+    var n = strlen(s);
+    memcpy(buf + off, s, n);
+    return off + n;
+}
+
+# Append the decimal form of n to buf at off; return new off.
+fn _cdp_b_int(buf, off, n): i64 {
+    var w = fmt_int_buf(n, buf + off);
+    return off + w;
+}
+
+# Append s to buf at off, JSON-escaped (no surrounding quotes); return off.
+fn _cdp_b_esc(buf, off, s): i64 {
+    var i = 0;
+    var L = strlen(s);
+    while (i < L) {
+        var c = load8(s + i);
+        if      (c == 34) { store8(buf + off, 92); store8(buf + off + 1, 34);  off = off + 2; }
+        elif    (c == 92) { store8(buf + off, 92); store8(buf + off + 1, 92);  off = off + 2; }
+        elif    (c == 10) { store8(buf + off, 92); store8(buf + off + 1, 110); off = off + 2; }
+        elif    (c == 13) { store8(buf + off, 92); store8(buf + off + 1, 114); off = off + 2; }
+        elif    (c ==  9) { store8(buf + off, 92); store8(buf + off + 1, 116); off = off + 2; }
+        else              { store8(buf + off, c); off = off + 1; }
+        i = i + 1;
+    }
+    return off;
+}
+
+# ── CDP handle ────────────
+# Layout (40 bytes):
+#   +0   ws handle
+#   +8   socket fd
+#   +16  next message id
+#   +24  reserved
+#   +32  reserved
+
+fn cdp_ws(cdp): i64 { return load64(cdp); }
+fn cdp_fd(cdp): i64 { return load64(cdp + 8); }
+fn cdp_next_id(cdp): i64 {
+    var id = load64(cdp + 16) + 1;
+    store64(cdp + 16, id);
+    return id;
+}
+
+# ── outgoing command builders ────────────
+
+# {"id":N,"method":"M","params":{}}
+fn _cdp_cmd0(id, method): i64 {
+    var buf = alloc(256);
+    var o = 0;
+    o = _cdp_b_cstr(buf, o, "{\"id\":");
+    o = _cdp_b_int(buf, o, id);
+    o = _cdp_b_cstr(buf, o, ",\"method\":\"");
+    o = _cdp_b_cstr(buf, o, method);
+    o = _cdp_b_cstr(buf, o, "\",\"params\":{}}");
+    store8(buf + o, 0);
+    return buf;
+}
+
+# {"id":N,"method":"Page.navigate","params":{"url":"..."}}
+fn _cdp_cmd_navigate(id, url): i64 {
+    var buf = alloc(strlen(url) * 2 + 256);
+    var o = 0;
+    o = _cdp_b_cstr(buf, o, "{\"id\":");
+    o = _cdp_b_int(buf, o, id);
+    o = _cdp_b_cstr(buf, o, ",\"method\":\"Page.navigate\",\"params\":{\"url\":\"");
+    o = _cdp_b_esc(buf, o, url);
+    o = _cdp_b_cstr(buf, o, "\"}}");
+    store8(buf + o, 0);
+    return buf;
+}
+
+# {"id":N,"method":"Runtime.evaluate","params":{"expression":"JS",
+#   "returnByValue":true,"awaitPromise":true}}
+fn _cdp_cmd_eval(id, js): i64 {
+    var buf = alloc(strlen(js) * 2 + 256);
+    var o = 0;
+    o = _cdp_b_cstr(buf, o, "{\"id\":");
+    o = _cdp_b_int(buf, o, id);
+    o = _cdp_b_cstr(buf, o, ",\"method\":\"Runtime.evaluate\",\"params\":{\"expression\":\"");
+    o = _cdp_b_esc(buf, o, js);
+    o = _cdp_b_cstr(buf, o, "\",\"returnByValue\":true,\"awaitPromise\":true}}");
+    store8(buf + o, 0);
+    return buf;
+}
+
+# ── send / receive ────────────
+
+# Read frames until a response whose "id" == want arrives; return the
+# parsed top-level value (json_v) or 0 on close/timeout. CDP events carry
+# no "id" and are skipped. Bounded so a missing reply can't hang forever.
+fn _cdp_await(cdp, want): i64 {
+    var ws = cdp_ws(cdp);
+    var tries = 0;
+    var got = 0;
+    var res = 0;
+    while (tries < 1000) {
+        var data = ws_recv(ws);
+        if (data == 0) { tries = 1000; continue; }
+        var v = json_v_parse_str(data, strlen(data));
+        if (v != 0) {
+            var idv = json_v_obj_get(v, "id");
+            if (idv != 0) {
+                if (json_v_is_int(idv) == 1) {
+                    if (json_v_int(idv) == want) { res = v; got = 1; tries = 1000; continue; }
+                }
+            }
+        }
+        tries = tries + 1;
+    }
+    if (got == 1) { return res; }
+    return 0;
+}
+
+# Send a Page.navigate and wait for the command ack. Returns 1 on ack, 0 otherwise.
+fn cdp_navigate(cdp, url): i64 {
+    var id = cdp_next_id(cdp);
+    ws_send_text(cdp_ws(cdp), _cdp_cmd_navigate(id, url));
+    if (_cdp_await(cdp, id) == 0) { return 0; }
+    return 1;
+}
+
+# Runtime.evaluate with returnByValue. Returns the result.result.value
+# node (json_v) or 0. Callers pull the typed value with json_v_str / int /
+# bool as appropriate.
+fn cdp_eval(cdp, js): i64 {
+    var id = cdp_next_id(cdp);
+    ws_send_text(cdp_ws(cdp), _cdp_cmd_eval(id, js));
+    var v = _cdp_await(cdp, id);
+    if (v == 0) { return 0; }
+    return json_v_obj_get(json_v_obj_get(json_v_obj_get(v, "result"), "result"), "value");
+}
+
+# Convenience: evaluate JS expected to yield a string; return it as cstr or 0.
+fn cdp_eval_str(cdp, js): i64 {
+    var v = cdp_eval(cdp, js);
+    if (v == 0) { return 0; }
+    return _cdp_s2c(json_v_str(v));
+}
+
+# Convenience: evaluate JS expected to yield a boolean; return 1/0.
+fn cdp_eval_bool(cdp, js): i64 {
+    var v = cdp_eval(cdp, js);
+    if (v == 0) { return 0; }
+    return json_v_bool(v);
+}
+
+# ── connection lifecycle ────────────
+
+# Minimal HTTP/1.1 GET for the CDP discovery endpoint. The stdlib http_get
+# speaks HTTP/1.0, which Chromium's DevTools HTTP server silently rejects
+# (it requires HTTP/1.1 — verified: 1.0 gets an empty close, 1.1 gets a
+# Content-Length response). Connection: close plus a recv timeout guarantee
+# the read loop terminates. Returns an alloc'd {body_ptr, body_len} pair, or 0.
+fn _cdp_http_get(port, path): i64 {
+    var fd_r = tcp_socket();
+    if (is_err_result(fd_r) == 1) { return 0; }
+    var fd = payload(fd_r);
+    sock_set_recv_timeout(fd, 5, 0);
+    var c_r = sock_connect(fd, INADDR_LOOPBACK(), port);
+    if (is_err_result(c_r) == 1) { sock_close(fd); return 0; }
+
+    var req = alloc(256);
+    var o = _cdp_b_cstr(req, 0, "GET ");
+    o = _cdp_b_cstr(req, o, path);
+    o = _cdp_b_cstr(req, o, " HTTP/1.1\r\nHost: 127.0.0.1:");
+    o = _cdp_b_int(req, o, port);
+    o = _cdp_b_cstr(req, o, "\r\nConnection: close\r\nAccept: application/json\r\n\r\n");
+    sock_send(fd, req, o);
+
+    var cap = 262144;
+    var buf = alloc(cap);
+    var total = 0;
+    var go = 1;
+    while (go == 1) {
+        var rd = sock_recv(fd, buf + total, cap - total);
+        if (is_err_result(rd) == 1) { go = 0; }
+        else {
+            var n = payload(rd);
+            if (n <= 0) { go = 0; }
+            else { total = total + n; if (total >= cap) { go = 0; } }
+        }
+    }
+    sock_close(fd);
+
+    # Body begins after the CRLFCRLF header terminator.
+    var i = 0;
+    var bodyoff = 0;
+    var found = 0;
+    while (i + 3 < total) {
+        if (found == 0) {
+            if (load8(buf + i) == 13) {
+                if (load8(buf + i + 1) == 10) {
+                    if (load8(buf + i + 2) == 13) {
+                        if (load8(buf + i + 3) == 10) { bodyoff = i + 4; found = 1; }
+                    }
+                }
+            }
+        }
+        i = i + 1;
+    }
+    if (found == 0) { return 0; }
+    var res = alloc(16);
+    store64(res, buf + bodyoff);
+    store64(res + 8, total - bodyoff);
+    return res;
+}
+
+# "127.0.0.1:<port>" — the Host header value for the WS handshake.
+fn _cdp_host_hdr(port): i64 {
+    var buf = alloc(32);
+    var o = _cdp_b_cstr(buf, 0, "127.0.0.1:");
+    o = _cdp_b_int(buf, o, port);
+    store8(buf + o, 0);
+    return buf;
+}
+
+# Pick a "page" target's webSocketDebuggerUrl from the /json array (json_v).
+# Falls back to the first target with any debugger URL. Returns cstr or 0.
+fn _cdp_find_page_ws(arr): i64 {
+    if (arr == 0) { return 0; }
+    var n = json_v_arr_len(arr);
+    var i = 0;
+    var found = 0;
+    var firstws = 0;
+    while (i < n) {
+        var el = json_v_arr_get(arr, i);
+        var wsv = json_v_obj_get(el, "webSocketDebuggerUrl");
+        if (wsv != 0) {
+            if (firstws == 0) { firstws = wsv; }
+            var tv = json_v_obj_get(el, "type");
+            if (tv != 0) {
+                if (streq(_cdp_s2c(json_v_str(tv)), "page") == 1) { found = wsv; i = n; continue; }
+            }
+        }
+        i = i + 1;
+    }
+    if (found != 0) { return _cdp_s2c(json_v_str(found)); }
+    if (firstws != 0) { return _cdp_s2c(json_v_str(firstws)); }
+    return 0;
+}
+
+# Extract the path from "ws://host:port/path..." — the bytes from the first
+# '/' after the "://" host part. Returns a pointer into wsurl, or "/".
+fn _cdp_ws_path(wsurl): i64 {
+    var L = strlen(wsurl);
+    var i = 0;
+    var host = wsurl;
+    var seen = 0;
+    while (i < L) {
+        if (seen == 0) {
+            if (i + 2 < L) {
+                if (load8(wsurl + i) == 58) {           # ':'
+                    if (load8(wsurl + i + 1) == 47) {   # '/'
+                        if (load8(wsurl + i + 2) == 47) { # '/'
+                            host = wsurl + i + 3;
+                            seen = 1;
+                        }
+                    }
+                }
+            }
+        }
+        i = i + 1;
+    }
+    var j = 0;
+    var hl = strlen(host);
+    var path = "/";
+    var done = 0;
+    while (j < hl) {
+        if (done == 0) {
+            if (load8(host + j) == 47) { path = host + j; done = 1; }
+        }
+        j = j + 1;
+    }
+    return path;
+}
+
+# Connect to a Chromium DevTools endpoint on 127.0.0.1:<port>. Returns a
+# CDP handle (Page domain enabled) or 0 on any failure.
+fn cdp_connect(port): i64 {
+    var body = _cdp_http_get(port, "/json");
+    if (body == 0) { return 0; }
+    var arr = json_v_parse_str(load64(body), load64(body + 8));
+    var wsurl = _cdp_find_page_ws(arr);
+    if (wsurl == 0) { return 0; }
+    var path = _cdp_ws_path(wsurl);
+
+    var fd_r = tcp_socket();
+    if (is_err_result(fd_r) == 1) { return 0; }
+    var fd = payload(fd_r);
+    # Backstop so a missing CDP reply can't block ws_recv forever.
+    sock_set_recv_timeout(fd, 10, 0);
+    var c_r = sock_connect(fd, INADDR_LOOPBACK(), port);
+    if (is_err_result(c_r) == 1) { sock_close(fd); return 0; }
+
+    var ws = ws_connect(fd, path, _cdp_host_hdr(port));
+    if (ws_state(ws) != WS_OPEN) { sock_close(fd); return 0; }
+
+    var cdp = alloc(40);
+    store64(cdp, ws);
+    store64(cdp + 8, fd);
+    store64(cdp + 16, 0);
+    store64(cdp + 24, 0);
+    store64(cdp + 32, 0);
+
+    # Enable page lifecycle events (navigate acks, load events).
+    var eid = cdp_next_id(cdp);
+    ws_send_text(ws, _cdp_cmd0(eid, "Page.enable"));
+    _cdp_await(cdp, eid);
+    return cdp;
+}
+
+# Close the WebSocket and socket. Safe on 0.
+fn cdp_close(cdp): i64 {
+    if (cdp == 0) { return 0; }
+    ws_close(cdp_ws(cdp));
+    sock_close(cdp_fd(cdp));
+    return 0;
+}

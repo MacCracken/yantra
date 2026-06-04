@@ -56,3 +56,32 @@ jobs:
           name: yantra-dist
           path: dist/yantra.cyr
           if-no-files-found: error
+
+  e2e-chromium:
+    name: E2E (Chromium / CDP)
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Cyrius
+        uses: ./.github/actions/setup-cyrius
+
+      - name: Sync vendored lib
+        run: cyrius lib sync
+
+      - name: Launch headless Chromium
+        run: |
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium-browser || command -v chromium)"
+          echo "using $CHROME"
+          "$CHROME" --headless=new --disable-gpu --no-sandbox \
+            --user-data-dir=/tmp/yc-ci --remote-debugging-port=9222 about:blank \
+            >/tmp/chromium.log 2>&1 &
+          for i in $(seq 1 50); do
+            curl -sf --max-time 2 http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break
+            sleep 0.3
+          done
+          curl -sf http://127.0.0.1:9222/json/version || { echo "Chromium did not come up"; cat /tmp/chromium.log; exit 1; }
+
+      - name: Run E2E (M1 acceptance)
+        run: cyrius test tests/e2e/chromium-smoke.tcyr

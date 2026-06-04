@@ -45,9 +45,12 @@ yantra_tap(session, "@id/login_button");
 
 ## Status
 
-**0.2.0 — in development** (0.1.0 scaffold shipped). Session / selector /
-action primitives are in place; the M1 Chromium/CDP backend is the next live
-target. Browser and mobile backends fill in per [the roadmap](docs/development/roadmap.md).
+**0.2.0 — in development** (0.1.0 scaffold shipped). **M1 Chromium/CDP backend
+is live** — `yantra_web_open("chromium")` drives a real headless browser
+(navigate / click / type / url / eval / close, auto-waiting), with a green
+end-to-end test (`tests/e2e/chromium-smoke.tcyr`). Firefox/WebKit (WebDriver)
+and mobile (Appium) fill in per [the roadmap](docs/development/roadmap.md),
+gated on `http.cyr` POST depth.
 
 ## Build
 

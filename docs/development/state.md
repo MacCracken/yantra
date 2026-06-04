@@ -32,11 +32,18 @@ _None live yet — the scaffold compiles against the stdlib baseline with stubs.
 
 | Platform | Protocol | Status |
 |----------|----------|--------|
-| Chromium (headless + headed) | Chrome DevTools Protocol (WebSocket) | scaffold / blocked on WebSocket transport |
-| Firefox | W3C WebDriver (HTTP + JSON) | scaffold / blocked on HTTP client |
-| WebKit (Safari, WebKitGTK) | W3C WebDriver | scaffold / blocked on HTTP client |
-| Android (native apps) | Appium JSON-RPC → UiAutomator2 | scaffold / blocked on HTTP client |
-| iOS (native apps) | Appium JSON-RPC → XCUITest | scaffold / blocked on HTTP client |
+| Chromium (headless + headed) | Chrome DevTools Protocol (WebSocket) | **LIVE (M1)** — open/navigate/click/type/url/eval/close, auto-waiting; e2e green against headless Chromium |
+| Firefox | W3C WebDriver (HTTP + JSON) | scaffold / blocked on `http.cyr` POST depth |
+| WebKit (Safari, WebKitGTK) | W3C WebDriver | scaffold / blocked on `http.cyr` POST depth |
+| Android (native apps) | Appium JSON-RPC → UiAutomator2 | scaffold / blocked on `http.cyr` POST depth |
+| iOS (native apps) | Appium JSON-RPC → XCUITest | scaffold / blocked on `http.cyr` POST depth |
+
+> **M1 note (2026-06-03)**: the CDP backend builds its own HTTP/1.1 GET for
+> target discovery — Chromium's DevTools HTTP server rejects HTTP/1.0 (what
+> stdlib `http_get` sends), so `src/protocol/cdp.cyr` issues `GET /json
+> HTTP/1.1\r\nConnection: close` directly over `net.cyr` + a recv timeout.
+> CDP commands then ride `ws.cyr` end to end. This quirk should be written up
+> in `docs/architecture/`.
 
 ## Dependency gaps
 
@@ -71,15 +78,23 @@ Tracked upstream in [agnosticos/docs/development/v5.7.x-proposals.md](https://gi
 
 ## Source
 
-Scaffolded skeleton only. Line counts will populate as modules fill in.
+- `src/main.cyr` — Session / Selector / Action primitives (`yantra_version`,
+  session field accessors). **Live.**
+- `src/protocol/cdp.cyr` — Chrome DevTools Protocol over `ws.cyr`: discovery
+  GET, command build/escape, response matching, eval/navigate/connect/close.
+  **Live (M1).**
+- `src/web.cyr` — browser public API: `yantra_web_open` / `navigate` / `click`
+  / `click_now` / `type` / `url` / `eval_str` / `eval_bool` / `close`, with
+  Playwright-style auto-waiting. **Live (M1).**
 
-Planned modules:
-- `src/main.cyr` — Session / Selector / Action / Assertion primitives
-- `src/web.cyr` — browser public API
+Planned (not yet written):
 - `src/mobile.cyr` — mobile public API
-- `src/protocol/cdp.cyr` — Chrome DevTools Protocol
-- `src/protocol/webdriver.cyr` — W3C WebDriver wire protocol
-- `src/protocol/appium.cyr` — Appium JSON-RPC dialect
+- `src/protocol/webdriver.cyr` — W3C WebDriver wire protocol (M2, gated on `http.cyr` POST)
+- `src/protocol/appium.cyr` — Appium JSON-RPC dialect (M3/M4)
+
+The `[lib] modules` bundle order is `main → cdp → web`; these modules carry no
+`include`s (stdlib resolved by the consumer). `programs/smoke.cyr` stitches the
+stdlib chain on for a local link-check.
 
 ## Tests & benchmarks
 
@@ -87,9 +102,10 @@ Planned modules:
 - `tests/yantra.bcyr` — micro-benchmark harness (`cyrius bench`), real now:
   measures the session-primitive decode paths (~5 ns each).
 - `tests/yantra.fcyr` — fuzz harness (`cyrius fuzz`), stub.
-- `tests/e2e/chromium-smoke.tcyr` — M1 acceptance E2E against live headless
-  Chromium. **Scaffold** (held out of the default `cyrius test` path until the
-  CDP backend lands); encodes the M1 acceptance criterion as executable intent.
+- `tests/e2e/chromium-smoke.tcyr` — M1 acceptance E2E. **Passing (11/11)**
+  against live headless Chromium: open → navigate → url → type (value
+  round-trips) → click (checkbox toggles) → click_now → close, all over CDP
+  with auto-waiting. Runs in the CI `E2E (Chromium / CDP)` job.
 - `programs/benchmarks.cyr` — incumbent-parity benchmark program (yantra vs
   Playwright/Appium). Scaffold + planned matrix; runs primitive benches today.
 - `scripts/bench-history.sh` → `bench-history.csv` — AGNOS bench-history
@@ -119,8 +135,13 @@ _None yet. yantra is a library for downstream `.tcyr` tests. Expected first cons
 
 See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence:
 
-1. **M1 — Chromium CDP backend** (v0.2.0). *Unblocked today.* CDP speaks WebSocket end-to-end; `lib/ws.cyr` is complete. Build `src/protocol/cdp.cyr` + `src/web.cyr` against stdlib, land `tests/e2e/chromium-smoke.tcyr` running against headless Chromium. First live backend does not wait on v5.7.x.
-2. **M2 — Firefox + WebKit WebDriver backends** (v0.3.0). *Blocked on v5.7.x.* Needs `lib/http.cyr` POST + headers + HTTPS depth.
+1. **M1 — Chromium CDP backend** (v0.2.0). ✅ **DONE** — `src/protocol/cdp.cyr`
+   + `src/web.cyr` live, `tests/e2e/chromium-smoke.tcyr` green against headless
+   Chromium, bundled into `dist/yantra.cyr`. Benchmark vs Playwright still TODO
+   (needs the parity flow in `programs/benchmarks.cyr` wired to a real page).
+2. **M2 — Firefox + WebKit WebDriver backends** (v0.3.0). *Blocked* on
+   `lib/http.cyr` POST + headers + HTTPS depth (open Cyrius-side gap; still
+   GET-only at 6.0.53).
 3. **M3 — Android Appium backend** (v0.4.0). *Blocked on v5.7.x.* Needs `lib/http.cyr` depth + `lib/json.cyr` depth.
 4. **M4 — iOS Appium backend** (v0.5.0). Same unblock as M3.
 5. **M5 onward** — auto-teardown, CI matrix, docs, security hardening, v1.0.

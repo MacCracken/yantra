@@ -46,6 +46,8 @@ output = "build/yantra-smoke"
 [lib]
 modules = [
     "src/main.cyr",
+    "src/protocol/cdp.cyr",
+    "src/web.cyr",
 ]
 
 [deps]
@@ -67,6 +69,14 @@ stdlib = [
     "chrono",
     "tagged",
     "assert",
+    # Transports the CDP backend (and future WebDriver/Appium) ride on.
+    # Consumers of dist/yantra.cyr get these resolved from their own
+    # [deps] stdlib; listed here so the manifest documents the real graph.
+    "net",
+    "http",
+    "ws",
+    "base64",
+    "json",
 ]
 
 # sakshi + sigil are now folded into Cyrius stdlib — include via

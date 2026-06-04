@@ -1,30 +1,62 @@
 # tests/e2e/chromium-smoke.tcyr — yantra's own E2E smoke against a live
 # headless Chromium. The acceptance test for ROADMAP M1.
 #
-# This is yantra dogfooding itself: the library's own test suite uses
-# yantra to drive a real browser, the same way mabda's
-# `programs/*_e2e.cyr` exercise a real GPU device. It runs against a
-# headless Chromium reachable at the CDP endpoint and does a full round
-# trip — open, navigate, click, assert URL, close.
+# yantra dogfooding itself: the library's own suite uses yantra to drive a
+# real browser over CDP. Deterministic — it navigates to a `data:` URL
+# (no network) and exercises the full verb surface: open → navigate → url
+# → type → click → eval → close, with auto-waiting on each action.
 #
-# Run (M1+; needs headless Chromium with --remote-debugging-port):
+# Run against a headless Chromium on the default CDP port (9222):
+#   chromium --headless=new --remote-debugging-port=9222 about:blank &
 #   cyrius test tests/e2e/chromium-smoke.tcyr
 #
-# STATUS: scaffold. The CDP backend (src/protocol/cdp.cyr + src/web.cyr)
-# is not implemented yet, so this is held out of the default `cyrius test`
-# path and runs only in the M6 CI matrix once a backend is live. It
-# encodes the M1 acceptance criterion as executable intent.
+# Set a non-default port with yantra_web_set_cdp_port() before open.
 
+# stdlib transports (dependency order) + yantra library modules.
+include "lib/net.cyr"
+include "lib/base64.cyr"
+include "lib/ws.cyr"
+include "lib/http.cyr"
+include "lib/json.cyr"
+include "src/main.cyr"
+include "src/protocol/cdp.cyr"
 include "src/web.cyr"
 
-fn test_chromium_round_trip() {
-    var session = yantra_web_open("chromium");
-    yantra_navigate(session, "https://example.com/");
-    yantra_click(session, "a");
-    assert_streq(yantra_url(session), "https://www.iana.org/help/example-domains", "navigated via link");
-    yantra_close(session);
+fn main() {
+    alloc_init();
+    test_group("chromium-e2e");
+
+    var s = yantra_web_open("chromium");
+    assert(s != 0, "open chromium session");
+    if (s == 0) { return assert_summary(); }
+
+    # A self-contained page: a text input and a checkbox. No quotes/spaces
+    # so the data: URL needs no percent-encoding.
+    var ok = yantra_navigate(s, "data:text/html,<input id=n><input type=checkbox id=c>");
+    assert(ok == 1, "navigate to data URL");
+
+    # location.href should be the data: URL we asked for.
+    var url = yantra_url(s);
+    assert(url != 0, "url is non-null");
+    assert(memeq(url, "data:text/html", 14) == 1, "url is the data page");
+
+    # Type into the text input, then read the value back from the DOM.
+    assert(yantra_type(s, "#n", "alice") == 1, "type into #n");
+    var v = yantra_eval_str(s, "document.querySelector(\"#n\").value");
+    assert_streq(v, "alice", "typed value round-trips");
+
+    # Checkbox starts unchecked; click toggles it.
+    assert(yantra_eval_bool(s, "document.querySelector(\"#c\").checked") == 0, "checkbox starts unchecked");
+    assert(yantra_click(s, "#c") == 1, "click #c");
+    assert(yantra_eval_bool(s, "document.querySelector(\"#c\").checked") == 1, "checkbox checked after click");
+
+    # Auto-wait opt-out path still resolves a present element.
+    assert(yantra_click_now(s, "#c") == 1, "click_now toggles back");
+    assert(yantra_eval_bool(s, "document.querySelector(\"#c\").checked") == 0, "checkbox unchecked again");
+
+    yantra_close(s);
     return assert_summary();
 }
 
-var exit_code = test_chromium_round_trip();
+var exit_code = main();
 syscall(60, exit_code);
