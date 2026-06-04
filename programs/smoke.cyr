@@ -13,17 +13,27 @@
 # (vendored from `dist/yantra.cyr`) and call the session / web verbs.
 
 # stdlib transports, in dependency order (each module references only
-# symbols defined earlier — single-pass compiler).
+# symbols defined earlier — single-pass compiler). The WebDriver backend
+# now rides `sandhi` (HTTP/1.1+2 + WebDriver/Appium RPC), so its dep chain
+# (net → tls bridge → sandhi) is stitched on here for the local link-check.
 include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
 include "lib/base64.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
 include "lib/ws.cyr"
 include "lib/json.cyr"
+include "lib/sandhi.cyr"
 
 # yantra library modules — same order as cyrius.cyml [lib] modules.
 include "src/main.cyr"
 include "src/protocol/cdp.cyr"
 include "src/protocol/webdriver.cyr"
 include "src/web.cyr"
+include "src/mobile.cyr"
 
 fn main() {
     alloc_init();

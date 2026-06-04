@@ -116,27 +116,84 @@ fn _web_eval_str(s, expr): i64 {
 fn _web_eval_bool(s, expr): i64 {
     var be = yantra_session_backend(s);
     if (_web_tp(s) == YANTRA_TP_CDP) { return cdp_eval_bool(be, expr); }
-    var buf = alloc(strlen(expr) + 16);
-    var o = _cdp_b_cstr(buf, 0, "return (");
+    # WebDriver: coerce to 0/1 in-script so the JSON value is a clean int.
+    var buf = alloc(strlen(expr) + 24);
+    var o = _cdp_b_cstr(buf, 0, "return ((");
     o = _cdp_b_cstr(buf, o, expr);
-    o = _cdp_b_cstr(buf, o, ")");
+    o = _cdp_b_cstr(buf, o, ")?1:0)");
     store8(buf + o, 0);
-    return wd_execute_bool(be, buf);
+    return wd_execute_int(be, buf);
 }
 
-# WebDriver locator strategy for a yantra selector (leading '/' → xpath).
-fn _web_wd_using(selector): i64 {
-    if (load8(selector) == 47) { return "xpath"; }
+# Does cstr s start with literal lit?
+fn _web_sel_starts(s, lit): i64 {
+    var i = 0;
+    var L = strlen(lit);
+    var ok = 1;
+    while (i < L) {
+        if (load8(s + i) != load8(lit + i)) { ok = 0; i = L; continue; }
+        i = i + 1;
+    }
+    return ok;
+}
+
+# Locator strategy for a yantra selector. `is_mobile` picks the default
+# strategy (Appium resource-id vs CSS) and the text: dialect:
+#   "@id/..."  -> "id"               (Android resource-id / generic id)
+#   "~..."     -> "accessibility id"  (iOS a11y / Android content-desc)
+#   "/..."     -> "xpath"
+#   "text:..." -> mobile "-android uiautomator" / web "xpath"
+#   else       -> mobile "id" / web "css selector"
+fn _web_sel_using(sel, is_mobile): i64 {
+    if (_web_sel_starts(sel, "@id/") == 1) { return "id"; }
+    if (load8(sel) == 126) { return "accessibility id"; }
+    if (load8(sel) == 47) { return "xpath"; }
+    if (_web_sel_starts(sel, "text:") == 1) {
+        if (is_mobile == 1) { return "-android uiautomator"; }
+        return "xpath";
+    }
+    if (is_mobile == 1) { return "id"; }
     return "css selector";
 }
 
+# The locator value for `sel` under the chosen strategy (strips the prefix,
+# builds the text: query form).
+fn _web_sel_value(sel, is_mobile): i64 {
+    if (_web_sel_starts(sel, "@id/") == 1) { return sel + 4; }
+    if (load8(sel) == 126) { return sel + 1; }
+    if (_web_sel_starts(sel, "text:") == 1) {
+        var t = sel + 5;
+        if (is_mobile == 1) {
+            var b = alloc(strlen(t) * 2 + 48);
+            var o = _cdp_b_cstr(b, 0, "new UiSelector().text(\"");
+            o = _web_b_jsesc(b, o, t);
+            o = _cdp_b_cstr(b, o, "\")");
+            store8(b + o, 0);
+            return b;
+        }
+        var bx = alloc(strlen(t) + 48);
+        var ox = _cdp_b_cstr(bx, 0, "//*[contains(text(),'");
+        ox = _cdp_b_cstr(bx, ox, t);
+        ox = _cdp_b_cstr(bx, ox, "')]");
+        store8(bx + ox, 0);
+        return bx;
+    }
+    return sel;
+}
+
+fn _web_is_mobile(s): i64 {
+    if (yantra_session_kind(s) == YANTRA_KIND_MOBILE) { return 1; }
+    return 0;
+}
+
 # Poll for a WebDriver element until found, or ceiling. Returns elem-id or 0.
-fn _web_wd_wait_find(be, selector): i64 {
-    var using = _web_wd_using(selector);
+fn _web_wd_wait_find(be, selector, is_mobile): i64 {
+    var using = _web_sel_using(selector, is_mobile);
+    var value = _web_sel_value(selector, is_mobile);
     var tries = 0;
     var elem = 0;
     while (tries < _YANTRA_WAIT_TRIES) {
-        var e = wd_find(be, using, selector);
+        var e = wd_find(be, using, value);
         if (e != 0) { elem = e; tries = _YANTRA_WAIT_TRIES; continue; }
         _yantra_sleep_ms(_YANTRA_WAIT_MS);
         tries = tries + 1;
@@ -193,6 +250,15 @@ fn _web_caps_webkit(): i64 {
 }
 
 # ── session construction ────────────
+
+fn _web_session_new_kind(kind, tp, backend): i64 {
+    var s = alloc(32);
+    store64(s, kind);
+    store64(s + 8, backend);
+    store64(s + 16, YANTRA_FLAG_AUTOWAIT);
+    store64(s + 24, tp);
+    return s;
+}
 
 fn _web_session_new(tp, backend): i64 {
     var s = alloc(32);
@@ -259,9 +325,10 @@ fn yantra_click(session, selector): i64 {
         }
         return cdp_eval_bool(be, _web_js_click(selector));
     }
+    var im = _web_is_mobile(session);
     var elem = 0;
-    if (_web_autowait(session) != 0) { elem = _web_wd_wait_find(be, selector); }
-    else                             { elem = wd_find(be, _web_wd_using(selector), selector); }
+    if (_web_autowait(session) != 0) { elem = _web_wd_wait_find(be, selector, im); }
+    else                             { elem = wd_find(be, _web_sel_using(selector, im), _web_sel_value(selector, im)); }
     if (elem == 0) { return 0; }
     return wd_click(be, elem);
 }
@@ -271,7 +338,8 @@ fn yantra_click_now(session, selector): i64 {
     if (session == 0) { return 0; }
     var be = yantra_session_backend(session);
     if (_web_tp(session) == YANTRA_TP_CDP) { return cdp_eval_bool(be, _web_js_click(selector)); }
-    var elem = wd_find(be, _web_wd_using(selector), selector);
+    var im = _web_is_mobile(session);
+    var elem = wd_find(be, _web_sel_using(selector, im), _web_sel_value(selector, im));
     if (elem == 0) { return 0; }
     return wd_click(be, elem);
 }
@@ -286,11 +354,11 @@ fn yantra_type(session, selector, text): i64 {
         }
         return cdp_eval_bool(be, _web_js_type(selector, text));
     }
+    var im = _web_is_mobile(session);
     var elem = 0;
-    if (_web_autowait(session) != 0) { elem = _web_wd_wait_find(be, selector); }
-    else                             { elem = wd_find(be, _web_wd_using(selector), selector); }
+    if (_web_autowait(session) != 0) { elem = _web_wd_wait_find(be, selector, im); }
+    else                             { elem = wd_find(be, _web_sel_using(selector, im), _web_sel_value(selector, im)); }
     if (elem == 0) { return 0; }
-    wd_clear(be, elem);
     return wd_send_keys(be, elem, text);
 }
 

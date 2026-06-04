@@ -1,338 +1,103 @@
-# src/protocol/webdriver.cyr — W3C WebDriver JSON wire protocol.
+# src/protocol/webdriver.cyr — W3C WebDriver backend, on sandhi's RPC layer.
 #
-# The M2 backend (Firefox via geckodriver, WebKit via webkitwebdriver, and any
-# W3C driver — chromedriver included, which is how the suite tests this layer).
-# WebDriver is HTTP + JSON to a localhost driver.
-#
-# Transport note: the stdlib `sandhi` HTTP client is capable (POST/headers/
-# HTTPS), but its response reader drains the connection until EOF rather than
-# framing by Content-Length — and chromium-family servers (chromedriver,
-# Chromium's DevTools) send `Connection: close` yet keep the socket open, so
-# sandhi blocks until timeout against them. So this backend uses its own
-# minimal HTTP/1.1 client (Content-Length-framed + recv timeout), exactly as
-# the CDP backend does for discovery. cstr in / cstr out, no TLS needed for
-# localhost drivers. See docs/architecture/002.
+# The M2 backend (Firefox via geckodriver, WebKit via webkitwebdriver, Chrome
+# via chromedriver). As of 0.4.0 this is a thin adapter over the stdlib
+# `sandhi` WebDriver dialect (`sandhi_wd_*`) — sandhi 1.4.1 fixed the
+# `Connection: close` read path that previously hung against chromium-family
+# servers (sandhi `docs/issues/2026-06-03-...`; the in-tree HTTP client this
+# replaced is recorded in yantra `docs/architecture/002`). sandhi owns the
+# HTTP/1.1+2 transport, TLS, retries, and pooling; yantra owns the verb shape.
 #
 # Carries NO `include` directives (bundle-safe — see cdp.cyr header). Reuses
-# the small builders from cdp.cyr (_cdp_b_cstr / _cdp_b_int / _cdp_b_esc /
-# _cdp_s2c), which precede it in the [lib] modules order.
-#
-# Protocol shape (W3C): every response is wrapped in {"value": ...}; a new
-# session POSTs capabilities to /session and gets value.sessionId; element
-# references come back under "element-6066-11e4-a52e-4f735466cecf".
+# the small builders from cdp.cyr (_cdp_b_cstr / _cdp_b_int), which precede it
+# in the [lib] modules order. References the stdlib `sandhi` symbols
+# (sandhi_wd_*, sandhi_rpc_*, sandhi_json_*) resolved by the consumer.
 
-var WD_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf";
-
-# ── minimal HTTP/1.1 client (Content-Length framed) ────────────
-
-# Lowercase an ASCII byte.
-fn _wd_lc(c): i64 {
-    if ((c >= 65) && (c <= 90)) { return c + 32; }
-    return c;
-}
-
-# Case-insensitive compare of n bytes at p against the lowercase literal lit.
-fn _wd_ci_match(p, lit, n): i64 {
-    var i = 0;
-    var ok = 1;
-    while (i < n) {
-        if (_wd_lc(load8(p + i)) != load8(lit + i)) { ok = 0; i = n; continue; }
-        i = i + 1;
-    }
-    return ok;
-}
-
-# Offset just past the CRLFCRLF header terminator, or -1 if not present.
-fn _wd_hdr_end(buf, total): i64 {
-    var i = 0;
-    var he = 0 - 1;
-    var done = 0;
-    while (i + 3 < total) {
-        if (done == 0) {
-            if (load8(buf + i) == 13) {
-                if (load8(buf + i + 1) == 10) {
-                    if (load8(buf + i + 2) == 13) {
-                        if (load8(buf + i + 3) == 10) { he = i + 4; done = 1; }
-                    }
-                }
-            }
-        }
-        i = i + 1;
-    }
-    return he;
-}
-
-# Parse Content-Length from the header region [0, hdr_end). Case-insensitive,
-# tolerates no space after the colon (chromium-family servers omit it).
-# Returns the value, or -1 if absent.
-fn _wd_parse_clen(buf, hdr_end): i64 {
-    var i = 0;
-    var cl = 0 - 1;
-    var done = 0;
-    while (i + 15 <= hdr_end) {
-        if (done == 0) {
-            if (_wd_ci_match(buf + i, "content-length:", 15) == 1) {
-                var j = i + 15;
-                var sk = 1;
-                while (sk == 1) {
-                    var c = load8(buf + j);
-                    if ((c == 32) || (c == 9)) { j = j + 1; } else { sk = 0; }
-                }
-                var v = 0;
-                var any = 0;
-                var pd = 1;
-                while (pd == 1) {
-                    var d = load8(buf + j);
-                    if ((d >= 48) && (d <= 57)) { v = v * 10 + (d - 48); j = j + 1; any = 1; }
-                    else { pd = 0; }
-                }
-                if (any == 1) { cl = v; }
-                done = 1;
-            }
-        }
-        i = i + 1;
-    }
-    return cl;
-}
-
-# Perform an HTTP/1.1 request to 127.0.0.1:<port>. `body` is a JSON cstr (sets
-# Content-Type + Content-Length) or 0 for none. Returns an alloc'd
-# {status, body_ptr, body_len}, or 0 on transport failure. Stops reading once
-# the full Content-Length body has arrived (no drain-until-EOF), with a recv
-# timeout backstop.
-fn _wd_request(port, method, path, body): i64 {
-    var fd_r = tcp_socket();
-    if (is_err_result(fd_r) == 1) { return 0; }
-    var fd = payload(fd_r);
-    sock_set_recv_timeout(fd, 30, 0);
-    var c_r = sock_connect(fd, INADDR_LOOPBACK(), port);
-    if (is_err_result(c_r) == 1) { sock_close(fd); return 0; }
-
-    var blen = 0;
-    if (body != 0) { blen = strlen(body); }
-    var req = alloc(blen + strlen(path) + 256);
-    var o = _cdp_b_cstr(req, 0, method);
-    o = _cdp_b_cstr(req, o, " ");
-    o = _cdp_b_cstr(req, o, path);
-    o = _cdp_b_cstr(req, o, " HTTP/1.1\r\nHost: 127.0.0.1:");
-    o = _cdp_b_int(req, o, port);
-    o = _cdp_b_cstr(req, o, "\r\nAccept: application/json\r\nConnection: close\r\n");
-    if (body != 0) {
-        o = _cdp_b_cstr(req, o, "Content-Type: application/json\r\nContent-Length: ");
-        o = _cdp_b_int(req, o, blen);
-        o = _cdp_b_cstr(req, o, "\r\n");
-    }
-    o = _cdp_b_cstr(req, o, "\r\n");
-    if (body != 0) { o = _cdp_b_cstr(req, o, body); }
-    sock_send(fd, req, o);
-
-    var cap = 1048576;
-    var buf = alloc(cap + 1);
-    var total = 0;
-    var hdr_end = 0 - 1;
-    var clen = 0 - 1;
-    var go = 1;
-    while (go == 1) {
-        # Stop as soon as we have headers + the full declared body.
-        if (hdr_end >= 0) {
-            if (clen >= 0) {
-                if (total - hdr_end >= clen) { go = 0; }
-            }
-        }
-        if (go == 1) {
-            var rd = sock_recv(fd, buf + total, cap - total);
-            if (is_err_result(rd) == 1) { go = 0; }
-            else {
-                var n = payload(rd);
-                if (n <= 0) { go = 0; }
-                else {
-                    total = total + n;
-                    if (hdr_end < 0) {
-                        var he = _wd_hdr_end(buf, total);
-                        if (he >= 0) { hdr_end = he; clen = _wd_parse_clen(buf, he); }
-                    }
-                    if (total >= cap) { go = 0; }
-                }
-            }
-        }
-    }
-    sock_close(fd);
-
-    if (hdr_end < 0) { return 0; }
-    var status = 0;
-    if (total >= 12) {
-        status = (load8(buf + 9) - 48) * 100 + (load8(buf + 10) - 48) * 10 + (load8(buf + 11) - 48);
-    }
-    var bl = total - hdr_end;
-    if (clen >= 0) { if (clen < bl) { bl = clen; } }
-    var res = alloc(24);
-    store64(res, status);
-    store64(res + 8, buf + hdr_end);
-    store64(res + 16, bl);
-    return res;
-}
-
-fn _wd_resp_ok(resp): i64 {
-    if (resp == 0) { return 0; }
-    var st = load64(resp);
-    if (st < 200) { return 0; }
-    if (st >= 300) { return 0; }
-    return 1;
-}
-
-# Parse a response body and return the W3C "value" node (json_v), or 0.
-fn _wd_value(resp): i64 {
-    if (_wd_resp_ok(resp) == 0) { return 0; }
-    var v = json_v_parse_str(load64(resp + 8), load64(resp + 16));
-    if (v == 0) { return 0; }
-    return json_v_obj_get(v, "value");
-}
-
-# ── wd handle (16 bytes): +0 port, +8 session_id cstr ────────────
-
-fn wd_port(wd): i64 { return load64(wd); }
+# wd handle (16 bytes): +0 base_url cstr, +8 session_id cstr.
+fn wd_base(wd): i64 { return load64(wd); }
 fn wd_session_id(wd): i64 { return load64(wd + 8); }
 
-# "/session/<id><tail>"   (tail like "/url", "/element", "")
-fn _wd_session_path(wd, tail): i64 {
-    var sid = wd_session_id(wd);
-    var buf = alloc(strlen(sid) + strlen(tail) + 16);
-    var o = _cdp_b_cstr(buf, 0, "/session/");
-    o = _cdp_b_cstr(buf, o, sid);
-    o = _cdp_b_cstr(buf, o, tail);
+# Build a wd handle from an already-opened (base_url, session_id). Used by the
+# mobile/Appium backend, which opens via Appium caps but then drives elements
+# through the shared WebDriver verbs.
+fn wd_handle_new(base, sid): i64 {
+    var wd = alloc(16);
+    store64(wd, base);
+    store64(wd + 8, sid);
+    return wd;
+}
+
+# "http://127.0.0.1:<port>" — sandhi_wd_* take a base URL string.
+fn _wd_base_url(port): i64 {
+    var buf = alloc(40);
+    var o = _cdp_b_cstr(buf, 0, "http://127.0.0.1:");
+    o = _cdp_b_int(buf, o, port);
     store8(buf + o, 0);
     return buf;
 }
-
-# "/session/<id>/element/<elem><tail>"
-fn _wd_element_path(wd, elem, tail): i64 {
-    var sid = wd_session_id(wd);
-    var buf = alloc(strlen(sid) + strlen(elem) + strlen(tail) + 32);
-    var o = _cdp_b_cstr(buf, 0, "/session/");
-    o = _cdp_b_cstr(buf, o, sid);
-    o = _cdp_b_cstr(buf, o, "/element/");
-    o = _cdp_b_cstr(buf, o, elem);
-    o = _cdp_b_cstr(buf, o, tail);
-    store8(buf + o, 0);
-    return buf;
-}
-
-# {"<key>":"<escaped value>"}
-fn _wd_body_kv(key, value): i64 {
-    var buf = alloc(strlen(key) + strlen(value) * 2 + 16);
-    var o = _cdp_b_cstr(buf, 0, "{\"");
-    o = _cdp_b_cstr(buf, o, key);
-    o = _cdp_b_cstr(buf, o, "\":\"");
-    o = _cdp_b_esc(buf, o, value);
-    o = _cdp_b_cstr(buf, o, "\"}");
-    store8(buf + o, 0);
-    return buf;
-}
-
-# {"using":"<using>","value":"<escaped value>"}
-fn _wd_body_locator(using, value): i64 {
-    var buf = alloc(strlen(using) + strlen(value) * 2 + 32);
-    var o = _cdp_b_cstr(buf, 0, "{\"using\":\"");
-    o = _cdp_b_cstr(buf, o, using);
-    o = _cdp_b_cstr(buf, o, "\",\"value\":\"");
-    o = _cdp_b_esc(buf, o, value);
-    o = _cdp_b_cstr(buf, o, "\"}");
-    store8(buf + o, 0);
-    return buf;
-}
-
-# {"script":"<escaped>","args":[]}
-fn _wd_body_script(script): i64 {
-    var buf = alloc(strlen(script) * 2 + 32);
-    var o = _cdp_b_cstr(buf, 0, "{\"script\":\"");
-    o = _cdp_b_esc(buf, o, script);
-    o = _cdp_b_cstr(buf, o, "\",\"args\":[]}");
-    store8(buf + o, 0);
-    return buf;
-}
-
-# ── verbs ────────────
 
 # Open a session against the driver on <port> with the given capabilities
-# JSON. Returns a wd handle (port, sessionId) or 0 on failure.
+# JSON. Returns a wd handle (base_url, session_id) or 0 on failure.
 fn wd_connect(port, caps_json): i64 {
-    var resp = _wd_request(port, "POST", "/session", caps_json);
-    var val = _wd_value(resp);
-    if (val == 0) { return 0; }
-    var sidv = json_v_obj_get(val, "sessionId");
-    if (sidv == 0) { return 0; }
-    var sid = _cdp_s2c(json_v_str(sidv));
+    var base = _wd_base_url(port);
+    var resp = sandhi_wd_new_session(base, caps_json);
+    if (sandhi_rpc_ok(resp) == 0) { return 0; }
+    var sid = sandhi_wd_extract_session_id(resp);
     if (sid == 0) { return 0; }
     var wd = alloc(16);
-    store64(wd, port);
+    store64(wd, base);
     store64(wd + 8, sid);
     return wd;
 }
 
 # Navigate to url. Returns 1 on success.
 fn wd_navigate(wd, url): i64 {
-    var resp = _wd_request(wd_port(wd), "POST", _wd_session_path(wd, "/url"), _wd_body_kv("url", url));
-    return _wd_resp_ok(resp);
+    return sandhi_rpc_ok(sandhi_wd_navigate_to(wd_base(wd), wd_session_id(wd), url));
 }
 
 # Current URL as a cstr, or 0.
 fn wd_url(wd): i64 {
-    var resp = _wd_request(wd_port(wd), "GET", _wd_session_path(wd, "/url"), 0);
-    var val = _wd_value(resp);
-    if (val == 0) { return 0; }
-    return _cdp_s2c(json_v_str(val));
+    var resp = sandhi_wd_get_url(wd_base(wd), wd_session_id(wd));
+    if (sandhi_rpc_ok(resp) == 0) { return 0; }
+    return sandhi_json_get_string(sandhi_rpc_body(resp), "value");
 }
 
-# Find the first element by strategy. Returns the element-id cstr or 0.
+# Find the first element by strategy ("css selector" / "xpath" / ...).
+# Returns the element-id cstr or 0 if not found.
 fn wd_find(wd, using, value): i64 {
-    var resp = _wd_request(wd_port(wd), "POST", _wd_session_path(wd, "/element"), _wd_body_locator(using, value));
-    var val = _wd_value(resp);
-    if (val == 0) { return 0; }
-    var ev = json_v_obj_get(val, WD_ELEMENT_KEY);
-    if (ev == 0) { return 0; }
-    return _cdp_s2c(json_v_str(ev));
+    var resp = sandhi_wd_find_element(wd_base(wd), wd_session_id(wd), using, value);
+    if (sandhi_rpc_ok(resp) == 0) { return 0; }
+    return sandhi_wd_extract_element_id(resp);
 }
 
 # Click an element by id. Returns 1 on success.
 fn wd_click(wd, elem): i64 {
-    var resp = _wd_request(wd_port(wd), "POST", _wd_element_path(wd, elem, "/click"), "{}");
-    return _wd_resp_ok(resp);
-}
-
-# Clear an element's value. Returns 1 on success.
-fn wd_clear(wd, elem): i64 {
-    var resp = _wd_request(wd_port(wd), "POST", _wd_element_path(wd, elem, "/clear"), "{}");
-    return _wd_resp_ok(resp);
+    return sandhi_rpc_ok(sandhi_wd_element_click(wd_base(wd), wd_session_id(wd), elem));
 }
 
 # Send keys (type) into an element by id. Returns 1 on success.
 fn wd_send_keys(wd, elem, text): i64 {
-    var resp = _wd_request(wd_port(wd), "POST", _wd_element_path(wd, elem, "/value"), _wd_body_kv("text", text));
-    return _wd_resp_ok(resp);
+    return sandhi_rpc_ok(sandhi_wd_element_send_keys(wd_base(wd), wd_session_id(wd), elem, text));
 }
 
-# Execute a JS script synchronously; returns the W3C value node (json_v) or 0.
-# The script must `return` its result (WebDriver semantics).
-fn wd_execute(wd, script): i64 {
-    var resp = _wd_request(wd_port(wd), "POST", _wd_session_path(wd, "/execute/sync"), _wd_body_script(script));
-    return _wd_value(resp);
-}
-
+# Execute a JS script (W3C /execute/sync); return the value as a cstr, or 0.
 fn wd_execute_str(wd, script): i64 {
-    var v = wd_execute(wd, script);
-    if (v == 0) { return 0; }
-    return _cdp_s2c(json_v_str(v));
+    var resp = sandhi_wd_execute_script(wd_base(wd), wd_session_id(wd), script, "[]");
+    if (sandhi_rpc_ok(resp) == 0) { return 0; }
+    return sandhi_json_get_string(sandhi_rpc_body(resp), "value");
 }
 
-fn wd_execute_bool(wd, script): i64 {
-    var v = wd_execute(wd, script);
-    if (v == 0) { return 0; }
-    return json_v_bool(v);
+# Execute a JS script; return the value as an int (callers coerce booleans to
+# 0/1 in the script so this reads cleanly).
+fn wd_execute_int(wd, script): i64 {
+    var resp = sandhi_wd_execute_script(wd_base(wd), wd_session_id(wd), script, "[]");
+    if (sandhi_rpc_ok(resp) == 0) { return 0; }
+    return sandhi_json_get_int(sandhi_rpc_body(resp), "value");
 }
 
 # Delete the session (closes the browser). Safe on 0.
 fn wd_close(wd): i64 {
     if (wd == 0) { return 0; }
-    _wd_request(wd_port(wd), "DELETE", _wd_session_path(wd, ""), 0);
+    sandhi_wd_delete_session(wd_base(wd), wd_session_id(wd));
     return 0;
 }

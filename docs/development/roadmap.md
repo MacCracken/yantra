@@ -55,14 +55,16 @@ yantra ~3× on navigate+click+assert, parity on navigate — numbers in state.md
 
 ### M2 — Firefox / WebKit WebDriver backend (shipped v0.3.0, 2026-06-03)
 
-✅ **Done.** `src/protocol/webdriver.cyr` (W3C WebDriver JSON wire over an
-in-tree Content-Length-framed HTTP/1.1 client — see architecture 002 for why not
-`sandhi`) + transport-aware `src/web.cyr`. `yantra_web_open("firefox"/"webkit")`
-routes to geckodriver/webkitwebdriver (port 4444); `"chrome"` to chromedriver
-(9515). Shared session semantics + auto-waiting with the CDP path. E2E **9/9**
-against live chromedriver (`tests/e2e/webdriver-smoke.tcyr`); the wire is
-identical for the Firefox/WebKit drivers. Selector translation: leading `/` →
-xpath, else css selector.
+✅ **Done** (shipped 0.3.0; **migrated onto `sandhi_wd_*` in 0.4.0**).
+`src/protocol/webdriver.cyr` is now a thin adapter over sandhi's WebDriver RPC
+dialect — sandhi 1.4.1 fixed the close-path drain that had forced a temporary
+in-tree client (architecture 002, resolved). Transport-aware `src/web.cyr`.
+`yantra_web_open("firefox"/"webkit")` → geckodriver/webkitwebdriver (4444);
+`"chrome"` → chromedriver (9515). Shared session semantics + auto-waiting with
+the CDP path. E2E **9/9** against live chromedriver
+(`tests/e2e/webdriver-smoke.tcyr`); identical wire for the Firefox/WebKit
+drivers. Selector translation unified + kind-aware (`@id/`, `~`, `text:`, `/`,
+css/id default).
 
 *Original scope:*
 
@@ -75,14 +77,24 @@ xpath, else css selector.
 
 ### M3 — Android Appium backend (v0.4.0)
 
-*Unblocked — Appium is HTTP+JSON-RPC; rides `lib/sandhi.cyr` (POST + headers) and `lib/json.cyr`'s value-tree.*
+✅ **Implemented** (live e2e pending an emulator). `src/mobile.cyr` rides the
+stdlib `sandhi` WebDriver/Appium RPC (`sandhi_wd_*` + `sandhi_ap_*`). A mobile
+session is a WebDriver-transport session, so the web verbs (`yantra_type` /
+`yantra_close` / `yantra_eval_*`) work directly; M3 adds the Appium opener and
+`yantra_tap`/`yantra_tap_now`/`yantra_mobile_source`.
 
-- `src/protocol/appium.cyr` — Appium JSON-RPC dialect
-- `src/mobile.cyr` — public API surface for `yantra_mobile_open("android", "com.example.app")`, `yantra_tap`, `yantra_type`, `yantra_close`
-- Session connects to a local Appium server (default `http://localhost:4723`) driving UiAutomator2
-- Selector translation: `@id/resource_id`, text-match, class-name, XPath
+- `src/mobile.cyr` — `yantra_mobile_open("android", "<pkg>")` (UiAutomator2),
+  `yantra_tap`, `yantra_tap_now`, `yantra_mobile_source`; `yantra_mobile_set_port`
+  (default Appium 4723). Caps built directly (platformName / appium:automationName
+  / appium:appPackage) and opened via `sandhi_wd_new_session`.
+- Selector translation (shared with web, kind-aware): `@id/<rid>` → id,
+  `~<label>` → accessibility id, `text:<t>` → `-android uiautomator`,
+  `/<xpath>` → xpath, else → id.
+- `tests/e2e/android-appium-smoke.tcyr` — acceptance scaffold; compile+link
+  verified.
 
-**Acceptance**: `.tcyr` file opens an Android emulator session, taps a resource-id, asserts visible text, closes. Benchmark vs Appium-Python equivalent.
+**Acceptance** (M6 device matrix): `.tcyr` opens an Android emulator session,
+taps a resource-id, asserts, closes. Benchmark vs Appium-Python equivalent.
 
 ### M4 — iOS Appium backend (v0.5.0)
 

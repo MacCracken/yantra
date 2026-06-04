@@ -6,6 +6,11 @@
 
 ## Version
 
+**0.4.0** — 2026-06-03. Migrates **M2 WebDriver onto the stdlib `sandhi` RPC
+layer** (`sandhi_wd_*`; sandhi 1.4.1's close-path fix landed) and adds the **M3
+Android Appium backend** (`src/mobile.cyr`, on `sandhi_wd_*`/`sandhi_ap_*`).
+Toolchain pin → 6.0.57.
+
 **0.3.0** — 2026-06-03. Adds the **M2 WebDriver backend** (Firefox / WebKit /
 Chrome via W3C WebDriver) on top of M1 (Chromium/CDP). Toolchain pin → 6.0.55.
 
@@ -19,11 +24,10 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.0.53` (in `cyrius.cyml [package].cyrius`) — bumped from
-  5.6.17 on 2026-06-03; vendored `lib/` re-synced to the 6.0.53 snapshot via
-  `cyrius lib sync` (the stale 5.6.17 snapshot was shadowing the pinned one).
-- **Bundled lib versions** (6.0.53 snapshot): sakshi 2.2.6, sigil 3.6.0,
-  patra 1.10.3, mabda 3.0.1.
+- **Cyrius pin**: `6.0.57` (in `cyrius.cyml [package].cyrius`). Vendored `lib/`
+  is gitignored and materialized with `cyrius lib sync`.
+- **Bundled sandhi**: 1.4.1 (includes the `Connection: close` Content-Length
+  framing fix that yantra's M2 WebDriver backend depends on).
 - **sigil 3.6.0 requires** `thread.cyr` + `thread_local.cyr` included before
   it. Both are listed in `cyrius.cyml [deps] stdlib`. yantra does not include
   sigil yet (it enters at M8, cert verification) — this is a forward-looking
@@ -39,17 +43,17 @@ _None live yet — the scaffold compiles against the stdlib baseline with stubs.
 | Firefox | W3C WebDriver (HTTP + JSON) | **LIVE (M2)** — `yantra_web_open("firefox")` via geckodriver |
 | WebKit (Safari, WebKitGTK) | W3C WebDriver | **LIVE (M2)** — same WebDriver wire as Firefox |
 | Chrome | W3C WebDriver (chromedriver) | **LIVE (M2)** — e2e green (9/9) against chromedriver |
-| Android (native apps) | Appium JSON-RPC → UiAutomator2 | unblocked (M3) — Appium is HTTP+JSON-RPC |
-| iOS (native apps) | Appium JSON-RPC → XCUITest | unblocked (M4) — same as Android |
+| Android (native apps) | Appium → UiAutomator2 (on `sandhi_wd_*`/`sandhi_ap_*`) | **M3 implemented** — `yantra_mobile_open("android",…)`/`tap`/`type`/`close`; compile+link verified, live e2e pending an emulator (M6) |
+| iOS (native apps) | Appium → XCUITest | M4 — same code path (`yantra_mobile_open("ios",…)`); routing in place |
 
-> **HTTP-transport note (2026-06-03)**: both live backends use small,
-> purpose-built HTTP/1.1 clients over `net.cyr` rather than stdlib HTTP. The CDP
-> backend's discovery GET works around Chromium's DevTools rejecting HTTP/1.0
-> ([architecture 001](../architecture/001-chromium-devtools-requires-http11.md));
-> the WebDriver backend frames responses by Content-Length because `sandhi`'s
-> close-path drains until EOF and hangs against chromium-family servers
-> ([architecture 002](../architecture/002-webdriver-uses-own-http-client.md);
-> sandhi bug filed). Both will move to `sandhi` once that's fixed.
+> **HTTP-transport note (2026-06-03, updated for 0.4.0)**: the **M2 WebDriver
+> and M3 Appium** backends ride the stdlib **`sandhi`** RPC layer (`sandhi_wd_*`
+> / `sandhi_ap_*`) — sandhi 1.4.1 fixed the close-path drain that had forced a
+> temporary in-tree client ([architecture 002](../architecture/002-webdriver-uses-own-http-client.md),
+> now resolved). The **M1 CDP** backend keeps its own one-shot discovery GET
+> (Chromium's DevTools rejects HTTP/1.0 —
+> [architecture 001](../architecture/001-chromium-devtools-requires-http11.md));
+> CDP commands ride `ws.cyr`.
 
 ## Transport layer (corrected 2026-06-03)
 
@@ -79,8 +83,9 @@ An earlier revision of this section wrongly claimed M2–M4 were blocked on
   a **v6.0.10 scaffold** (returns `TLS_ERR_NOT_IMPLEMENTED`); the bridge remains
   the working transport. The native-TLS transition is a Cyrius-side concern.
 
-Net: **all five backends are transport-unblocked.** M1 (Chromium/CDP) and M2
-(Firefox/WebKit/Chrome WebDriver) are live; M3/M4 (Appium) follow.
+Net: M1 (Chromium/CDP) and M2 (Firefox/WebKit/Chrome WebDriver) are live; M3
+(Android Appium) is implemented (live run pending an emulator); M4 (iOS) shares
+the path.
 
 ## Source
 
@@ -89,20 +94,19 @@ Net: **all five backends are transport-unblocked.** M1 (Chromium/CDP) and M2
 - `src/protocol/cdp.cyr` — Chrome DevTools Protocol over `ws.cyr`: discovery
   GET, command build/escape, response matching, eval/navigate/connect/close.
   **Live (M1).**
-- `src/protocol/webdriver.cyr` — W3C WebDriver JSON wire protocol over an
-  in-tree minimal HTTP/1.1 client: new session, navigate, find, click, clear,
-  send-keys, execute, delete. **Live (M2).**
-- `src/web.cyr` — browser public API: `yantra_web_open` / `navigate` / `click`
-  / `click_now` / `type` / `url` / `eval_str` / `eval_bool` / `close`, with
-  Playwright-style auto-waiting. **Transport-aware** (CDP vs WebDriver). **Live.**
+- `src/protocol/webdriver.cyr` — W3C WebDriver backend, a **thin adapter over
+  `sandhi_wd_*`** (sandhi owns the HTTP transport). **Live (M2).**
+- `src/web.cyr` — browser public API (`yantra_web_open` / `navigate` / `click` /
+  `click_now` / `type` / `url` / `eval_str` / `eval_bool` / `close`),
+  transport-aware (CDP vs WebDriver) with unified, kind-aware selector
+  translation and Playwright-style auto-waiting. **Live.**
+- `src/mobile.cyr` — mobile public API (`yantra_mobile_open` / `tap` /
+  `tap_now` / `mobile_source`; `type`/`close`/`eval_*` inherited from web.cyr).
+  Appium via `sandhi_wd_*`/`sandhi_ap_*`. **Live (M3); live e2e pends an emulator.**
 
-Planned (not yet written):
-- `src/mobile.cyr` — mobile public API (M3/M4)
-- `src/protocol/appium.cyr` — Appium JSON-RPC dialect (M3/M4)
-
-The `[lib] modules` bundle order is `main → cdp → webdriver → web`; these
-modules carry no `include`s (stdlib resolved by the consumer). `programs/smoke.cyr`
-stitches the stdlib chain on for a local link-check.
+The `[lib] modules` bundle order is `main → cdp → webdriver → web → mobile`;
+these modules carry no `include`s (stdlib resolved by the consumer).
+`programs/smoke.cyr` stitches the stdlib chain on for a local link-check.
 
 ## Tests & benchmarks
 
@@ -118,6 +122,10 @@ stitches the stdlib chain on for a local link-check.
   against live chromedriver via `yantra_web_open("chrome")`: open → navigate →
   url → type → click → eval → close over the W3C WebDriver wire (identical
   protocol for geckodriver/webkitwebdriver).
+- `tests/e2e/android-appium-smoke.tcyr` — M3 acceptance **scaffold**
+  (open → tap → type → tap → source → close). Compile+link verified; live run
+  needs an Android emulator + Appium server (M6 device matrix), so it's held out
+  of CI like the other live-device work.
 - `programs/benchmarks.cyr` — incumbent-parity benchmark program (yantra vs
   Playwright/Appium). Scaffold + planned matrix; runs primitive benches today.
 - `scripts/bench-history.sh` → `bench-history.csv` — AGNOS bench-history
@@ -173,13 +181,14 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
    + `src/web.cyr` live, `tests/e2e/chromium-smoke.tcyr` green against headless
    Chromium, bundled into `dist/yantra.cyr`, and Playwright parity benchmarked
    (see Benchmarks above — yantra ~3× on the flow). Full milestone closed.
-2. **M2 — Firefox + WebKit WebDriver backends** (shipped v0.3.0). ✅ **DONE** —
-   `src/protocol/webdriver.cyr` + transport-aware `web.cyr`; e2e 9/9 against
-   chromedriver (same wire for geckodriver/webkitwebdriver). Also routes
-   `"chrome"` via chromedriver.
-3. **M3 — Android Appium backend** (v0.4.0). **Next.** Appium is HTTP+JSON-RPC —
-   reuses the WebDriver-style transport.
-4. **M4 — iOS Appium backend** (v0.5.0). Same transport as M3.
+2. **M2 — Firefox + WebKit WebDriver backends** (shipped v0.3.0; migrated onto
+   `sandhi_wd_*` in v0.4.0). ✅ **DONE** — e2e 9/9 against chromedriver (same
+   wire for geckodriver/webkitwebdriver); also routes `"chrome"`.
+3. **M3 — Android Appium backend** (v0.4.0). ✅ **Implemented** — `src/mobile.cyr`
+   on `sandhi_wd_*`/`sandhi_ap_*`; compile+link verified. **Live e2e pending an
+   Android emulator + Appium server** (M6 device matrix).
+4. **M4 — iOS Appium backend** (v0.5.0). Routing in place (`yantra_mobile_open("ios",…)`
+   → XCUITest); same code path as M3.
 5. **M5 onward** — auto-teardown, CI matrix, docs, security hardening, v1.0.
 
 Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.

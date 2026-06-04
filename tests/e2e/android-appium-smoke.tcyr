@@ -1,0 +1,60 @@
+# tests/e2e/android-appium-smoke.tcyr — yantra's M3 acceptance against a live
+# Android emulator + Appium server (UiAutomator2). Mirrors the web e2e shape:
+# open → tap → type → tap → source → close, through the Appium backend.
+#
+# STATUS: scaffold. Unlike the CDP / WebDriver e2e (which run in CI against
+# headless Chromium / chromedriver), this needs an Android emulator + a running
+# Appium server, so it is NOT in the default `cyrius test` path or CI — it's the
+# M6 device-matrix's job. It encodes the M3 acceptance criterion as executable
+# intent and is compile-checked (the mobile verbs + selector translation must
+# stay linkable). yantra's mobile backend rides sandhi's WebDriver/Appium RPC.
+#
+# Run (manual, with an emulator + Appium up on :4723):
+#   appium &
+#   cyrius test tests/e2e/android-appium-smoke.tcyr
+#
+# Override the Appium port with yantra_mobile_set_port() before open.
+
+# Full chain: net → tls bridge → sandhi (WebDriver/Appium RPC) + ws + json.
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/base64.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/json.cyr"
+include "lib/sandhi.cyr"
+include "src/main.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+fn main() {
+    alloc_init();
+    test_group("android-appium-e2e");
+
+    # Drive the Settings app — present on every Android image.
+    var s = yantra_mobile_open("android", "com.android.settings");
+    assert(s != 0, "open android session (UiAutomator2)");
+    if (s == 0) { return assert_summary(); }
+
+    # Resource-id selector ("@id/<name>"), accessibility-id ("~<label>"),
+    # visible text ("text:<t>"), and xpath ("/...") all translate to Appium
+    # locator strategies (see _web_sel_using in web.cyr).
+    assert(yantra_tap(s, "~Search settings") == 1, "tap search (accessibility id)");
+    assert(yantra_type(s, "@id/search_src_text", "wifi") == 1, "type query (resource-id)");
+    assert(yantra_tap(s, "text:Wi-Fi") == 1, "tap Wi-Fi (visible text)");
+
+    var src = yantra_mobile_source(s);
+    assert(src != 0, "page source (Appium) is non-null");
+
+    yantra_close(s);
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);

@@ -5,7 +5,7 @@ description = "Sovereign UI automation — browser + mobile, as a Cyrius library
 license = "GPL-3.0-only"
 repository = "https://github.com/MacCracken/yantra"
 language = "cyrius"
-cyrius = "6.0.55"
+cyrius = "6.0.57"
 
 # yantra is a **library** consumed by `.tcyr` test files — it is not a
 # test framework. `cyrius test` stays the runner. yantra adds the verbs:
@@ -56,6 +56,7 @@ modules = [
     "src/protocol/cdp.cyr",
     "src/protocol/webdriver.cyr",
     "src/web.cyr",
+    "src/mobile.cyr",
 ]
 
 [deps]
@@ -80,10 +81,15 @@ stdlib = [
     # Transports the backends ride on. Consumers of dist/yantra.cyr get
     # these resolved from their own [deps] stdlib; listed here so the
     # manifest documents the real graph.
-    "net",     # sockets — CDP + WebDriver minimal HTTP clients
-    "ws",      # M1 Chromium/CDP
-    "base64",  # ws handshake
-    "json",    # CDP + WebDriver/Appium JSON value tree
+    "net",      # sockets — M1 CDP discovery GET + transport
+    "ws",       # M1 Chromium/CDP
+    "base64",   # ws handshake
+    "json",     # CDP JSON value tree
+    "sandhi",   # HTTP/1.1+2 + WebDriver/Appium RPC — M2 (WebDriver) + M3/M4 (Appium)
+    "tls",      # sandhi's HTTPS path (libssl fdlopen bridge)
+    "dynlib",   # tls bridge
+    "fdlopen",  # tls bridge
+    "mmap",     # tls/sandhi
 ]
 
 # sakshi + sigil are now folded into Cyrius stdlib — include via

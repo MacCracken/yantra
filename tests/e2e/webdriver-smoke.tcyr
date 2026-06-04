@@ -14,12 +14,19 @@
 # code path via yantra_web_open("firefox"/"webkit") against geckodriver/
 # webkitwebdriver on port 4444 (override with yantra_web_set_wd_port).
 
-# stdlib chain: net (sockets) + ws (CDP) + base64 (ws handshake) + json.
-# WebDriver rides its own minimal HTTP client over net.cyr — no sandhi/TLS.
+# stdlib chain: WebDriver rides `sandhi` (HTTP/1.1+2 + WebDriver RPC), so its
+# dep chain (net → tls bridge → sandhi) is included alongside ws (CDP) + json.
 include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
 include "lib/base64.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
 include "lib/ws.cyr"
 include "lib/json.cyr"
+include "lib/sandhi.cyr"
 include "src/main.cyr"
 include "src/protocol/cdp.cyr"
 include "src/protocol/webdriver.cyr"

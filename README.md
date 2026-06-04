@@ -45,15 +45,17 @@ yantra_tap(session, "@id/login_button");
 
 ## Status
 
-**0.3.0.** Two live backends:
+**0.4.0.** Backends:
 - **Chromium via CDP** (M1) — `yantra_web_open("chromium")`, with a Playwright
   parity benchmark.
 - **Firefox / WebKit / Chrome via W3C WebDriver** (M2) —
-  `yantra_web_open("firefox"/"webkit"/"chrome")`.
+  `yantra_web_open("firefox"/"webkit"/"chrome")`, on the stdlib `sandhi` RPC layer.
+- **Android via Appium** (M3) — `yantra_mobile_open("android", "<pkg>")` +
+  `yantra_tap` / `yantra_type` / `yantra_close`, on `sandhi_wd_*`/`sandhi_ap_*`.
+  Implemented + link-verified; live device run lands with the M6 matrix.
 
-Both drive a real headless browser (navigate / click / type / url / eval /
-close, auto-waiting) with green end-to-end tests. Mobile (Appium, M3/M4) is next
-— see [the roadmap](docs/development/roadmap.md).
+Web backends have green end-to-end tests (CDP 11/11, WebDriver 9/9). iOS (M4)
+shares the Appium path. See [the roadmap](docs/development/roadmap.md).
 
 ## Build
 

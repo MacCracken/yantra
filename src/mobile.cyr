@@ -1,0 +1,92 @@
+# src/mobile.cyr — yantra's mobile-automation public API (M3: Android Appium).
+#
+# Appium is W3C WebDriver + mobile extensions, so a mobile session is a
+# WebDriver-transport session (transport = YANTRA_TP_WD) whose backend is the
+# shared wd handle. Element interaction reuses the WebDriver verbs in
+# webdriver.cyr (find/click/send_keys) and the transport-aware verbs in
+# web.cyr — `yantra_type`, `yantra_close`, `yantra_eval_*` work unchanged on a
+# mobile session. This file adds only what's mobile-specific: the Appium
+# session opener and `yantra_tap`. iOS (M4) shares the path via "ios".
+#
+# Sessions open through `sandhi_wd_new_session` with Appium capabilities built
+# here (platformName / appium:automationName / appium:appPackage|bundleId).
+# We build caps directly rather than via `sandhi_ap_new_session`, which nests
+# extra caps under a non-standard `appium:extras` key.
+#
+# No `include` directives (bundle-safe). Depends on main.cyr (YANTRA_KIND_MOBILE),
+# webdriver.cyr (wd_*), and web.cyr (session/selector/auto-wait helpers) — all
+# precede it in the [lib] modules order — plus the stdlib `sandhi` RPC layer.
+
+# Appium server port (default 4723). Override before yantra_mobile_open.
+var _yantra_appium_port = 4723;
+fn yantra_mobile_set_port(p): i64 { _yantra_appium_port = p; return 0; }
+fn yantra_mobile_port(): i64 { return _yantra_appium_port; }
+
+# Build the W3C capabilities JSON for an Appium session. Returns a cstr or 0
+# for an unsupported platform. app_id is the Android package or iOS bundle id.
+fn _mobile_caps(platform, app_id): i64 {
+    var pn = 0;
+    var an = 0;
+    var android = 0;
+    if (streq(platform, "android") == 1) { pn = "Android"; an = "UiAutomator2"; android = 1; }
+    elif (streq(platform, "ios") == 1)   { pn = "iOS"; an = "XCUITest"; android = 0; }
+    else { return 0; }
+
+    var always = sandhi_json_obj_new();
+    sandhi_json_add_string(always, "platformName", pn);
+    sandhi_json_add_string(always, "appium:automationName", an);
+    if (android == 1) { sandhi_json_add_string(always, "appium:appPackage", app_id); }
+    else              { sandhi_json_add_string(always, "appium:bundleId", app_id); }
+
+    var caps = sandhi_json_obj_new();
+    sandhi_json_add_object(caps, "alwaysMatch", always);
+    var root = sandhi_json_obj_new();
+    sandhi_json_add_object(root, "capabilities", caps);
+    return sandhi_json_build(root);
+}
+
+# Open a mobile session. platform is "android" (UiAutomator2) or "ios"
+# (XCUITest); app_id is the package / bundle id. Connects to a local Appium
+# server on the configured port. Returns a session handle or 0 on failure.
+fn yantra_mobile_open(platform, app_id): i64 {
+    var caps = _mobile_caps(platform, app_id);
+    if (caps == 0) { return 0; }
+    var base = _wd_base_url(_yantra_appium_port);
+    var resp = sandhi_wd_new_session(base, caps);
+    if (sandhi_rpc_ok(resp) == 0) { return 0; }
+    var sid = sandhi_wd_extract_session_id(resp);
+    if (sid == 0) { return 0; }
+    var wd = wd_handle_new(base, sid);
+    return _web_session_new_kind(YANTRA_KIND_MOBILE, YANTRA_TP_WD, wd);
+}
+
+# Tap the element matching selector. Mobile selectors:
+#   "@id/<resource-id>"  ·  "~<accessibility-id>"  ·  "text:<text>"  ·  "/<xpath>"
+# With auto-wait, waits for the element to exist first. Returns 1/0.
+fn yantra_tap(session, selector): i64 {
+    if (session == 0) { return 0; }
+    var be = yantra_session_backend(session);
+    var elem = 0;
+    if (_web_autowait(session) != 0) { elem = _web_wd_wait_find(be, selector, 1); }
+    else                             { elem = wd_find(be, _web_sel_using(selector, 1), _web_sel_value(selector, 1)); }
+    if (elem == 0) { return 0; }
+    return wd_click(be, elem);
+}
+
+# No-wait opt-out: tap immediately, no actionability wait.
+fn yantra_tap_now(session, selector): i64 {
+    if (session == 0) { return 0; }
+    var be = yantra_session_backend(session);
+    var elem = wd_find(be, _web_sel_using(selector, 1), _web_sel_value(selector, 1));
+    if (elem == 0) { return 0; }
+    return wd_click(be, elem);
+}
+
+# The current UI hierarchy as an XML cstr (Appium page source), or 0.
+fn yantra_mobile_source(session): i64 {
+    if (session == 0) { return 0; }
+    var be = yantra_session_backend(session);
+    var resp = sandhi_ap_source(wd_base(be), wd_session_id(be));
+    if (sandhi_rpc_ok(resp) == 0) { return 0; }
+    return sandhi_json_get_string(sandhi_rpc_body(resp), "value");
+}

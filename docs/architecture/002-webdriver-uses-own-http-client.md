@@ -1,10 +1,19 @@
 # 002 — The WebDriver backend uses its own HTTP client, not `sandhi`
 
-**Constraint.** `src/protocol/webdriver.cyr` does **not** use the stdlib
-`sandhi` HTTP client, even though `sandhi` is the full-featured HTTP/1.1+2
+> **RESOLVED in 0.4.0 (2026-06-03).** sandhi **1.4.1** fixed the close-path
+> drain described below, so `src/protocol/webdriver.cyr` was migrated onto
+> sandhi's WebDriver RPC dialect (`sandhi_wd_*`) and no longer ships its own
+> HTTP client. The history below is kept for the record. M3 (Appium) rides the
+> same sandhi layer (`sandhi_wd_*` + `sandhi_ap_*`). The CDP backend still uses
+> its own one-shot discovery GET (architecture 001) — unrelated and unaffected.
+
+---
+
+**Original constraint (0.3.0).** `src/protocol/webdriver.cyr` did **not** use the
+stdlib `sandhi` HTTP client, even though `sandhi` is the full-featured HTTP/1.1+2
 client (POST, headers, HTTPS) and is the obvious choice for a WebDriver wire.
-It rolls its own minimal Content-Length-framed HTTP/1.1 client over `net.cyr`
-(`_wd_request`). This is non-obvious — `sandhi` is *right there* — so it's
+It rolled its own minimal Content-Length-framed HTTP/1.1 client over `net.cyr`
+(`_wd_request`). This was non-obvious — `sandhi` was *right there* — so it was
 recorded here.
 
 ## Why

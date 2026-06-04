@@ -4,6 +4,42 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-03
+
+> Migrates the M2 WebDriver backend onto the stdlib `sandhi` RPC layer and
+> adds the **M3 Android Appium backend**. Toolchain → Cyrius 6.0.57.
+
+### Changed
+- **Toolchain pin → 6.0.57** (was 6.0.55); `cyrius lib sync`'d (sandhi 1.4.1
+  now in the snapshot, with the `Connection: close` framing fix).
+- **M2 WebDriver migrated onto `sandhi_wd_*`.** `src/protocol/webdriver.cyr` is
+  now a thin adapter over sandhi's WebDriver RPC dialect
+  (`sandhi_wd_new_session` / `navigate_to` / `find_element` / `element_click` /
+  `element_send_keys` / `execute_script` / `delete_session`) instead of yantra's
+  hand-rolled Content-Length-framed HTTP client. sandhi 1.4.1 fixed the
+  close-path drain that originally forced the in-tree client (architecture 002).
+  sandhi now owns the HTTP transport, TLS, retries, and pooling. E2E still
+  **9/9** against chromedriver; M1 CDP unaffected (**11/11**).
+- `web.cyr` selector translation unified + made kind-aware (`_web_sel_using` /
+  `_web_sel_value`): `@id/…` → id, `~…` → accessibility id, `text:…` →
+  uiautomator (mobile) / xpath (web), `/…` → xpath, else css (web) / id (mobile).
+  So `yantra_type` / `yantra_close` / `yantra_eval_*` work on mobile sessions too.
+
+### Added
+- **M3 — Android Appium backend.** `src/mobile.cyr`:
+  `yantra_mobile_open("android", "<pkg>")` (UiAutomator2; `"ios"` → XCUITest for
+  M4) opens an Appium session via `sandhi_wd_new_session` with proper W3C caps,
+  then `yantra_tap` / `yantra_tap_now` / `yantra_type` / `yantra_close` /
+  `yantra_mobile_source` drive it over sandhi's WebDriver/Appium RPC. Mobile
+  sessions are WebDriver-transport sessions, so the web verbs apply directly.
+  - `yantra_mobile_set_port` (default Appium 4723).
+  - `tests/e2e/android-appium-smoke.tcyr` — M3 acceptance scaffold
+    (open → tap → type → tap → source → close). Compile-checked; live run needs
+    an Android emulator + Appium server (M6 device matrix), so it's held out of
+    CI like the other live-device work.
+- `dist/yantra.cyr` now bundles `main → cdp → webdriver → web → mobile`;
+  `sandhi`/`tls`/`dynlib`/`fdlopen`/`mmap` added to `[deps] stdlib`.
+
 ## [0.3.0] - 2026-06-03
 
 > Adds the **M2 WebDriver backend** (Firefox / WebKit / Chrome via W3C
