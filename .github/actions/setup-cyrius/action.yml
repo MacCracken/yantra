@@ -50,14 +50,16 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        # Workaround for a cyrius macOS installer bug (through ≥6.0.61): the
-        # installer prints "standard library installed" but leaves
-        # versions/<v>/lib unpopulated on the macOS runner, so `cyrius lib sync`
-        # fails with "snapshot lib not found at …/versions/<v>/lib". (Linux is
-        # fine — verified.) Belt-and-suspenders: if the snapshot is missing,
-        # backfill lib/ straight from the release tarball. No-ops where the
-        # installer already laid it down. Drop this once the cyrius bug is fixed
-        # (cyrius issue 2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync).
+        # Runner-safety net for a cyrius macOS installer bug: the installer left
+        # versions/<v>/lib unpopulated on the macos-15-arm64 runner, so
+        # `cyrius lib sync` failed with "snapshot lib not found at …". Fixed
+        # upstream in 6.0.62 (whole-dir cp -r → contents cp -R + fail-loud
+        # assert), but the bug only ever reproduced on that runner — so until a
+        # green run confirms the fix THERE, keep backfilling lib/ from the
+        # release tarball if the snapshot is missing. No-ops on Linux and once
+        # the 6.0.62 installer fix takes on the runner (the step logs which).
+        # Drop this once macos-15-arm64 CI is confirmed green (cyrius issue
+        # 2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync).
         V="${{ steps.ver.outputs.version }}"
         LIBDIR="$HOME/.cyrius/versions/$V/lib"
         if [ -d "$LIBDIR" ] && [ -n "$(ls -A "$LIBDIR" 2>/dev/null)" ]; then
