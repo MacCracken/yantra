@@ -27,36 +27,31 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.cyrius
-        # v2: install into the versioned snapshot layout (versions/<v>/lib)
-        # that `cyrius lib sync` and the compiler resolve stdlib from.
-        key: cyrius-${{ runner.os }}-${{ steps.ver.outputs.version }}-v2
+        # v3: installed via the toolchain's own install.sh (canonical layout:
+        # versions/<v>/{bin,lib} + ~/.cyrius/{bin,lib} symlinks + current).
+        key: cyrius-${{ runner.os }}-${{ steps.ver.outputs.version }}-v3
 
     - name: Install toolchain
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         V="${{ steps.ver.outputs.version }}"
-        echo "Installing Cyrius $V"
-        curl -sLO "https://github.com/MacCracken/cyrius/releases/download/$V/cyrius-$V-x86_64-linux.tar.gz"
-        tar xzf "cyrius-$V-x86_64-linux.tar.gz"
-        D="cyrius-$V-x86_64-linux"
-        # Lay out the canonical versioned snapshot. `cyrius lib sync` reads
-        # ~/.cyrius/versions/<v>/lib, and the compiler resolves stdlib there
-        # — the flat ~/.cyrius/{bin,lib} copy was not enough.
-        VER="$HOME/.cyrius/versions/$V"
-        mkdir -p "$VER"
-        cp -r "$D/bin" "$VER/bin"
-        cp -r "$D/lib" "$VER/lib"
-        chmod +x "$VER/bin/"* 2>/dev/null || true
-        # Match the installer's layout: per-version VERSION file + a top-level
-        # `current` file holding the active version string (it is a plain file,
-        # not a symlink).
-        echo "$V" > "$VER/VERSION"
-        echo "$V" > "$HOME/.cyrius/current"
+        echo "Installing Cyrius $V via the bundled install.sh"
+        TARBALL="$(pwd)/cyrius-$V-x86_64-linux.tar.gz"
+        curl -sL -o "$TARBALL" \
+          "https://github.com/MacCracken/cyrius/releases/download/$V/cyrius-$V-x86_64-linux.tar.gz"
+        # Run the official installer from a temp dir (so it doesn't poke the
+        # repo checkout). CYRIUS_INSTALL_TARBALL installs from the local file;
+        # the installer lays out ~/.cyrius/versions/$V/{bin,lib}, symlinks
+        # ~/.cyrius/{bin,lib} → it, and writes ~/.cyrius/current — exactly what
+        # `cyrius lib sync` and tool resolution (~/.cyrius/bin/cyrlint) need.
+        WORK="$(mktemp -d)"
+        tar xzf "$TARBALL" -C "$WORK"
+        ( cd "$WORK" && CYRIUS_VERSION="$V" CYRIUS_INSTALL_TARBALL="$TARBALL" \
+            sh "cyrius-$V-x86_64-linux/install.sh" )
 
     - name: Export PATH and CYRIUS_HOME
       shell: bash
       run: |
-        V="${{ steps.ver.outputs.version }}"
-        echo "$HOME/.cyrius/versions/$V/bin" >> "$GITHUB_PATH"
+        echo "$HOME/.cyrius/bin" >> "$GITHUB_PATH"
         echo "CYRIUS_HOME=$HOME/.cyrius" >> "$GITHUB_ENV"
