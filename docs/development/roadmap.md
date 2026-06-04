@@ -135,13 +135,28 @@ Offline suite `tests/m5.tcyr` 14/14; verified across web (CDP/WebDriver) + iOS.
   with codes `NULL`/`BROWSER`/`CONNECT`/`SESSION`/`NAV`/`NO_ELEMENT`/`ACTION`.
 - **Tracing**: `yantra_trace_enable(1)` wraps each action in a sakshi span.
 
-### M6 — CI matrix (v0.7.0)
+### M6 — CI matrix (shipped v0.6.2, 2026-06-04)
 
-- yantra's own test suite runs against all five backends in CI
-- Chromium + Firefox + WebKit via local headless
-- Android emulator + iOS simulator via ephemeral CI containers
-- Benchmark comparison vs Playwright (Chromium / Firefox / WebKit) and Appium (Android / iOS) on identical workloads
-- CSV-history format matching the AGNOS bench-history.sh convention
+✅ **Done.** yantra's own e2e suite runs against all five backends in CI on every
+push/PR (`.github/workflows/ci.yml`):
+
+- **Chromium (CDP)** + **chromedriver (WebDriver)** — headless on ubuntu (M1/M2,
+  already gated; unchanged).
+- **Firefox** via geckodriver (`tests/e2e/firefox-smoke.tcyr`) — headless via
+  yantra's `-headless` cap.
+- **WebKit** via WebKitWebDriver / WebKitGTK (`tests/e2e/webkit-smoke.tcyr`) —
+  under Xvfb (no headless cap).
+- **Android** via `reactivecircus/android-emulator-runner` (api-34 / google_apis
+  / x86_64 / KVM) + Appium/UiAutomator2.
+- **iOS** via `macos-latest` + a runner-matched simulator + Appium/XCUITest.
+
+The `setup-cyrius` action is OS/arch-aware (x86_64-linux + aarch64-macos), so the
+same action serves the Linux and macOS jobs. Benchmark history
+(`scripts/bench-history.sh` → normalized-ns CSV) is produced in CI and uploaded
+as an artifact. Incumbent **parity** harnesses — `scripts/parity-playwright.mjs`
+(web) and `scripts/parity-appium.py` (mobile) — run manually on a box with the
+incumbent installed (not in CI); the published web parity numbers are in the
+benchmarks section below. Mobile parity numbers: TODO (run the Appium harness).
 
 ### M7 — Docs + Examples (v0.8.0)
 

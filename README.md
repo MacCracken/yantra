@@ -45,7 +45,7 @@ yantra_tap(session, "@id/login_button");
 
 ## Status
 
-**0.6.1.** All five planned backends **live**:
+**0.6.2.** All five planned backends **live**, each gated by its own CI e2e job:
 - **Chromium via CDP** (M1) — `yantra_web_open("chromium")`, with a Playwright
   parity benchmark.
 - **Firefox / WebKit / Chrome / Safari via W3C WebDriver** (M2) —
@@ -60,8 +60,13 @@ yantra_tap(session, "@id/login_button");
 retry-on-transient connects, and opt-in tracing spans (`yantra_trace_enable`).
 
 Verified live: CDP 11/11, WebDriver 9/9, iOS 4/4, Android 4/4 (+ M5 offline
-14/14). Runs on Linux x86_64 and **macOS arm64**. See
-[the roadmap](docs/development/roadmap.md).
+14/14). Runs on Linux x86_64 and **macOS arm64**.
+
+**CI (M6):** the e2e suite runs against all five backends on every push/PR —
+Chromium + chromedriver + Firefox + WebKit on Linux, Android on an emulator
+(KVM), iOS on a macOS-runner simulator. Parity harnesses
+(`scripts/parity-playwright.mjs`, `scripts/parity-appium.py`) produce the
+Playwright / Appium comparison columns. See [the roadmap](docs/development/roadmap.md).
 
 ## Build
 

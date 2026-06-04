@@ -113,3 +113,186 @@ jobs:
 
       - name: Run E2E (M2 acceptance)
         run: cyrius test tests/e2e/webdriver-smoke.tcyr
+
+  e2e-firefox:
+    name: E2E (Firefox / geckodriver)
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Cyrius
+        uses: ./.github/actions/setup-cyrius
+
+      - name: Sync vendored lib
+        run: cyrius lib sync
+
+      - name: Setup Firefox
+        uses: browser-actions/setup-firefox@v1
+
+      - name: Setup geckodriver
+        uses: browser-actions/setup-geckodriver@latest
+
+      - name: Launch geckodriver
+        run: |
+          geckodriver --port=4444 >/tmp/geckodriver.log 2>&1 &
+          for i in $(seq 1 50); do
+            curl -sf --max-time 2 http://127.0.0.1:4444/status >/dev/null 2>&1 && break
+            sleep 0.3
+          done
+          curl -sf http://127.0.0.1:4444/status || { echo "geckodriver did not come up"; cat /tmp/geckodriver.log; exit 1; }
+
+      - name: Run E2E (Firefox)
+        # yantra requests -headless in the firefox caps, so no display needed.
+        run: cyrius test tests/e2e/firefox-smoke.tcyr
+
+  e2e-webkit:
+    name: E2E (WebKit / WebKitWebDriver)
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Cyrius
+        uses: ./.github/actions/setup-cyrius
+
+      - name: Sync vendored lib
+        run: cyrius lib sync
+
+      - name: Install WebKitGTK driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y webkit2gtk-driver xvfb
+
+      - name: Launch WebKitWebDriver (headless via Xvfb)
+        # WebKitGTK has no headless cap like Chrome/Firefox, so it runs under a
+        # virtual display. WEBKIT_DISABLE_COMPOSITING_MODE avoids GPU needs.
+        run: |
+          export WEBKIT_DISABLE_COMPOSITING_MODE=1
+          xvfb-run -a WebKitWebDriver --port=4444 --host=127.0.0.1 >/tmp/wkd.log 2>&1 &
+          for i in $(seq 1 50); do
+            curl -sf --max-time 2 http://127.0.0.1:4444/status >/dev/null 2>&1 && break
+            sleep 0.3
+          done
+          curl -sf http://127.0.0.1:4444/status || { echo "WebKitWebDriver did not come up"; cat /tmp/wkd.log; exit 1; }
+
+      - name: Run E2E (WebKit)
+        run: cyrius test tests/e2e/webkit-smoke.tcyr
+
+  e2e-android:
+    name: E2E (Android / UiAutomator2)
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Cyrius
+        uses: ./.github/actions/setup-cyrius
+
+      - name: Sync vendored lib
+        run: cyrius lib sync
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Appium + UiAutomator2
+        run: |
+          npm install -g appium
+          appium driver install uiautomator2
+
+      - name: Run E2E on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+          disable-animations: true
+          # cyrius is on PATH from setup-cyrius (exported via GITHUB_PATH).
+          # skipDeviceInitialization in yantra's caps handles the
+          # io.appium.settings quirk (see architecture 003).
+          script: |
+            appium --port 4723 --log-level error >/tmp/appium.log 2>&1 &
+            for i in $(seq 1 30); do
+              curl -sf http://127.0.0.1:4723/status >/dev/null 2>&1 && break
+              sleep 1
+            done
+            cyrius test tests/e2e/android-appium-smoke.tcyr
+
+  e2e-ios:
+    name: E2E (iOS / XCUITest)
+    runs-on: macos-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Cyrius
+        uses: ./.github/actions/setup-cyrius
+
+      - name: Sync vendored lib
+        run: cyrius lib sync
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Appium + XCUITest
+        run: |
+          npm install -g appium
+          appium driver install xcuitest
+
+      - name: Boot a simulator + run E2E
+        # The committed ios-appium-smoke.tcyr targets the maintainer's local sim
+        # (iPhone 17 / iOS 26.5). The hosted runner ships a different Xcode/iOS,
+        # so pick whatever sim the runner has and run a device-matched copy.
+        run: |
+          DEV="$(xcrun simctl list devices available | grep -Eo 'iPhone [0-9]+' | sort -t' ' -k2 -n | tail -1)"
+          VER="$(xcrun simctl list runtimes available | grep -Eo 'iOS [0-9]+\.[0-9]+' | tail -1 | awk '{print $2}')"
+          echo "Using simulator: $DEV (iOS $VER)"
+          xcrun simctl boot "$DEV" || true
+          appium --port 4723 --log-level error >/tmp/appium.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4723/status >/dev/null 2>&1 && break
+            sleep 1
+          done
+          sed -E "s/yantra_mobile_set_ios_device\\(\"[^\"]*\", \"[^\"]*\"\\)/yantra_mobile_set_ios_device(\"$DEV\", \"$VER\")/" \
+            tests/e2e/ios-appium-smoke.tcyr > /tmp/ios-ci.tcyr
+          # Run from repo root so the relative include paths still resolve.
+          cyrius test /tmp/ios-ci.tcyr
+
+  benchmarks:
+    name: Benchmarks (history CSV)
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Cyrius
+        uses: ./.github/actions/setup-cyrius
+
+      - name: Sync vendored lib
+        run: cyrius lib sync
+
+      - name: Run micro-benchmarks → CSV
+        # Normalized (ns) one-row-per-bench history, AGNOS bench-history shape.
+        # Incumbent parity (vs Playwright/Appium) lives in scripts/parity-*.{mjs,py},
+        # run manually on a box with the incumbent installed — not in CI.
+        run: scripts/bench-history.sh
+
+      - name: Upload bench history
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-history
+          path: bench-history.csv
+          if-no-files-found: error

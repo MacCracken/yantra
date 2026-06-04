@@ -4,6 +4,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-04
+
+> **M6 — CI device matrix + parity-benchmark harnesses.** yantra's own e2e suite
+> now runs against all five backends in CI, and the mobile parity harness lands
+> alongside the existing web one.
+
+### Added
+- **CI e2e jobs for every backend** (`.github/workflows/ci.yml`), all on
+  push/PR:
+  - **Firefox** via geckodriver (`tests/e2e/firefox-smoke.tcyr`) — headless
+    through yantra's `-headless` cap, no display needed.
+  - **WebKit** via WebKitWebDriver / WebKitGTK (`tests/e2e/webkit-smoke.tcyr`),
+    run under Xvfb (`webkit2gtk-driver` has no headless cap).
+  - **Android** via `reactivecircus/android-emulator-runner` (api-34 /
+    google_apis / x86_64, KVM) + Appium/UiAutomator2.
+  - **iOS** via `macos-latest` + a runner-matched simulator (the job picks the
+    available device/iOS and runs a device-matched copy of the e2e) +
+    Appium/XCUITest.
+- **`scripts/parity-appium.py`** — the Appium-Python side of the **mobile**
+  parity benchmark (open → page source → find → tap), mirroring
+  `scripts/parity-playwright.mjs` for web. Reference harness; not run in CI.
+- **Benchmark-history CI job** — runs `scripts/bench-history.sh` and uploads
+  `bench-history.csv` (normalized ns, AGNOS one-row-per-bench convention) as a
+  build artifact.
+
+### Changed
+- **`setup-cyrius` action is now OS/arch-aware** — resolves the release triple
+  from `uname` (x86_64-linux on ubuntu, aarch64-macos on the macOS runner) and
+  keys the toolchain cache on it, so the same action serves the web/Android
+  (Linux) and iOS (macOS) jobs.
+
 ## [0.6.1] - 2026-06-04
 
 > **M3 — Android Appium backend now LIVE.** The Android/UiAutomator2 path,

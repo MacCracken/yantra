@@ -1,0 +1,58 @@
+# tests/e2e/firefox-smoke.tcyr — M6 acceptance against live Firefox via
+# geckodriver (W3C WebDriver). Same flow/assertions as the chromedriver smoke,
+# proving yantra's WebDriver backend drives Firefox unchanged except the opener.
+#
+# Run against geckodriver on its default port (4444):
+#   geckodriver --port=4444 &        # with a headless Firefox on PATH
+#   cyrius test tests/e2e/firefox-smoke.tcyr
+#
+# yantra_web_open("firefox") routes to the WebDriver transport on port 4444.
+
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/base64.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/json.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
+include "src/main.cyr"
+include "src/runtime.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+fn main() {
+    alloc_init();
+    test_group("firefox-e2e");
+
+    var s = yantra_web_open("firefox");
+    assert(s != 0, "open firefox (geckodriver) session");
+    if (s == 0) { return assert_summary(); }
+
+    var ok = yantra_navigate(s, "data:text/html,<input id=n><input type=checkbox id=c>");
+    assert(ok == 1, "navigate to data URL");
+
+    var url = yantra_url(s);
+    assert(url != 0, "url is non-null");
+    assert(memeq(url, "data:text/html", 14) == 1, "url is the data page");
+
+    assert(yantra_type(s, "#n", "alice") == 1, "type into #n");
+    var v = yantra_eval_str(s, "document.querySelector(\"#n\").value");
+    assert_streq(v, "alice", "typed value round-trips");
+
+    assert(yantra_eval_bool(s, "document.querySelector(\"#c\").checked") == 0, "checkbox starts unchecked");
+    assert(yantra_click(s, "#c") == 1, "click #c");
+    assert(yantra_eval_bool(s, "document.querySelector(\"#c\").checked") == 1, "checkbox checked after click");
+
+    yantra_close(s);
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);

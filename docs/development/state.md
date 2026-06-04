@@ -6,6 +6,16 @@
 
 ## Version
 
+**0.6.2** — 2026-06-04. **M6 — CI device matrix + parity harnesses.** yantra's
+e2e suite now runs against all five backends on every push/PR: Chromium (CDP) +
+chromedriver, **Firefox** (geckodriver), **WebKit** (WebKitWebDriver under Xvfb),
+**Android** (`android-emulator-runner`, api-34/google_apis/x86_64 + Appium), and
+**iOS** (`macos-latest` + a runner-matched simulator + Appium). `setup-cyrius` is
+now OS/arch-aware (x86_64-linux + aarch64-macos). New `scripts/parity-appium.py`
+(mobile parity, mirrors the web `parity-playwright.mjs`); bench-history CSV
+uploaded as a CI artifact. New e2e: `tests/e2e/firefox-smoke.tcyr`,
+`webkit-smoke.tcyr`.
+
 **0.6.1** — 2026-06-04. **M3 — Android Appium backend now LIVE.**
 `tests/e2e/android-appium-smoke.tcyr` passes **4/4** against a live android-34 /
 google_apis x86_64 emulator (Appium 3.x + uiautomator2, KVM): open
@@ -160,18 +170,29 @@ these modules carry no `include`s (stdlib resolved by the consumer).
   with auto-waiting. Runs in the CI `E2E (Chromium / CDP)` job.
 - `tests/e2e/webdriver-smoke.tcyr` — M2 acceptance E2E. **Passing (9/9)**
   against live chromedriver via `yantra_web_open("chrome")`: open → navigate →
-  url → type → click → eval → close over the W3C WebDriver wire (identical
-  protocol for geckodriver/webkitwebdriver).
+  url → type → click → eval → close over the W3C WebDriver wire. CI job
+  `E2E (WebDriver / chromedriver)`.
+- `tests/e2e/firefox-smoke.tcyr` / `webkit-smoke.tcyr` — M6 web e2e for the
+  remaining WebDriver targets. Same flow as the chromedriver smoke via
+  `yantra_web_open("firefox")` (geckodriver, headless cap) / `("webkit")`
+  (WebKitWebDriver under Xvfb). CI jobs `E2E (Firefox …)` / `E2E (WebKit …)`.
 - `tests/e2e/android-appium-smoke.tcyr` — M3 acceptance E2E. **Passing (4/4)**
   against a live android-34 / google_apis x86_64 emulator (Appium 3.x +
   uiautomator2): open `com.android.settings` → page source (UiAutomator2 XML) →
-  tap first clickable element → close. Needs an emulator + Appium server, so
-  it's held out of the default CI path (wires into the M6 device matrix).
+  tap first clickable element → close. CI job `E2E (Android …)` via
+  `reactivecircus/android-emulator-runner` (KVM).
+- `tests/e2e/ios-appium-smoke.tcyr` — M4 acceptance E2E. **4/4** vs an iOS 26.5
+  simulator locally (open Settings → source → tap cell → close). CI job
+  `E2E (iOS …)` on `macos-latest` runs a runner-matched copy (the committed file
+  targets the maintainer's local sim).
 - `programs/benchmarks.cyr` — incumbent-parity benchmark program (yantra vs
   Playwright/Appium). Scaffold + planned matrix; runs primitive benches today.
 - `scripts/bench-history.sh` → `bench-history.csv` — AGNOS bench-history
   convention: one normalized (ns) row per benchmark per run, keyed by UTC
-  timestamp + git short-sha. Wired into CI.
+  timestamp + git short-sha. Run in CI; CSV uploaded as an artifact.
+- `scripts/parity-playwright.mjs` (web) / `scripts/parity-appium.py` (mobile) —
+  incumbent-parity harnesses. Run manually on a box with Playwright / Appium +
+  a device; produce the incumbent column. Not in CI (need the incumbent).
 - `examples/web-consumer/login.tcyr` + `docs/examples/` — minimal
   "hello browser" consumer reference (mabda `examples/stdlib-consumer` analog).
 
