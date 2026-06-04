@@ -1,5 +1,8 @@
 /build/
 /dist/
+# Vendored stdlib snapshot — not tracked. Materialize with `cyrius lib sync`
+# (CI does this after toolchain setup; see CONTRIBUTING.md).
+/lib/
 *.core
 .claude/
 .idea/

@@ -6,7 +6,13 @@
 
 ## Version
 
-**0.1.0** — scaffolded 2026-04-23 via `cyrius init yantra`. Module skeletons + session / selector / action primitives land first. Browser and mobile backends are stubbed until the HTTP + WebSocket transport crates (or stdlib additions) land.
+**0.2.0** (in development) — opened 2026-06-03. The toolchain/CI/benchmark
+modernization landed here and 0.2.0 ships with the M1 (Chromium/CDP) and M2
+(Firefox/WebKit WebDriver) backend work — see [roadmap.md](roadmap.md).
+
+**0.1.0** — scaffolded 2026-04-23 via `cyrius init yantra` (released). Module
+skeletons + session / selector / action primitives. Browser and mobile
+backends stubbed pending transport-layer depth.
 
 ## Toolchain
 

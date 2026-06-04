@@ -2,14 +2,22 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [Unreleased] — 0.2.0 dev cycle (ships with the M1/M2 backends)
+
+> 0.1.0 is released; this modernization opens the 0.2.0 cycle and lands
+> alongside the M1 (Chromium/CDP) and M2 (Firefox/WebKit WebDriver) work.
+> `VERSION` is now `0.2.0`.
 
 ### Changed
 - **Toolchain bumped 5.6.17 → 6.0.53** (`cyrius.cyml [package].cyrius`).
-  Re-synced the vendored `lib/` to the 6.0.53 stdlib snapshot via
-  `cyrius lib sync` (the stale 5.6.17 snapshot was shadowing the pinned one
-  and triggering drift warnings). Replaced two stale dep symlinks
-  (`sakshi` → 2.1.0, `sigil` → 2.9.1) with the snapshot files (2.2.6 / 3.6.0).
+  The stale 5.6.17 vendored snapshot was shadowing the pinned one and
+  triggering drift warnings.
+- **`lib/` is no longer tracked in git.** The vendored stdlib snapshot is
+  gitignored and materialized on demand with `cyrius lib sync` (CI runs it
+  right after toolchain setup; fresh clones run it once — see CONTRIBUTING.md).
+  This removes a ~90-file vendored blob from version control and guarantees
+  `lib/` always matches the pin. Replaced two stale dep symlinks
+  (`sakshi` → 2.1.0, `sigil` → 2.9.1) in the process.
 - Added `thread_local` to `[deps] stdlib` (sigil 3.6.0 now requires
   `thread` + `thread_local` before it).
 - **CI/release modernized**: new `setup-cyrius` composite action (caches the

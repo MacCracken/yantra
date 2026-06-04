@@ -21,6 +21,9 @@ jobs:
       - name: Setup Cyrius
         uses: ./.github/actions/setup-cyrius
 
+      - name: Sync vendored lib
+        run: cyrius lib sync
+
       - name: Lint
         run: |
           for f in src/*.cyr programs/*.cyr; do

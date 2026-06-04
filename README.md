@@ -45,7 +45,9 @@ yantra_tap(session, "@id/login_button");
 
 ## Status
 
-**0.1.0 — scaffold.** Module skeletons + session / selector / action primitives land first. Browser and mobile backends are stubbed until the HTTP + WebSocket transport crates (or stdlib additions) land.
+**0.2.0 — in development** (0.1.0 scaffold shipped). Session / selector /
+action primitives are in place; the M1 Chromium/CDP backend is the next live
+target. Browser and mobile backends fill in per [the roadmap](docs/development/roadmap.md).
 
 ## Build
 
