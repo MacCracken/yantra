@@ -45,17 +45,18 @@ yantra_tap(session, "@id/login_button");
 
 ## Status
 
-**0.4.0.** Backends:
+**0.4.1.** Backends:
 - **Chromium via CDP** (M1) — `yantra_web_open("chromium")`, with a Playwright
   parity benchmark.
-- **Firefox / WebKit / Chrome via W3C WebDriver** (M2) —
-  `yantra_web_open("firefox"/"webkit"/"chrome")`, on the stdlib `sandhi` RPC layer.
-- **Android via Appium** (M3) — `yantra_mobile_open("android", "<pkg>")` +
-  `yantra_tap` / `yantra_type` / `yantra_close`, on `sandhi_wd_*`/`sandhi_ap_*`.
-  Implemented + link-verified; live device run lands with the M6 matrix.
+- **Firefox / WebKit / Chrome / Safari via W3C WebDriver** (M2) —
+  `yantra_web_open("firefox"/"webkit"/"chrome"/"safari")`, on the stdlib `sandhi` RPC layer.
+- **Android / iOS via Appium** (M3/M4) — `yantra_mobile_open("android"|"ios", "<id>")`
+  + `yantra_tap` / `yantra_type` / `yantra_close`, on `sandhi_wd_*`/`sandhi_ap_*`.
 
-Web backends have green end-to-end tests (CDP 11/11, WebDriver 9/9). iOS (M4)
-shares the Appium path. See [the roadmap](docs/development/roadmap.md).
+Web backends have green end-to-end tests (CDP 11/11, WebDriver 9/9). yantra also
+builds + runs on **macOS arm64**. The live Safari/iOS runs are blocked on a
+cyrius stdlib `net.cyr` Darwin-socket port (filed upstream) — the code paths are
+verified to the socket boundary. See [the roadmap](docs/development/roadmap.md).
 
 ## Build
 

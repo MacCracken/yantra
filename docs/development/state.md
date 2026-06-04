@@ -6,6 +6,15 @@
 
 ## Version
 
+**0.4.1** — 2026-06-04. Adds a **Safari** web target (`yantra_web_open("safari")`,
+Apple safaridriver), **iOS simulator targeting** (`yantra_mobile_set_ios_device`),
+and the **M4 iOS scaffold**. **First cross-platform validation**: yantra builds +
+runs on **macOS arm64** (smoke/unit/lint/distlib green). M4 iOS-live is blocked
+on a cyrius stdlib bug — `lib/net.cyr` uses Linux socket syscall numbers, so all
+networking fails on Darwin (filed
+[cyrius issue 2026-06-04](https://github.com/MacCracken/cyrius); see CHANGELOG).
+yantra's iOS path is verified correct up to the socket boundary.
+
 **0.4.0** — 2026-06-03. Migrates **M2 WebDriver onto the stdlib `sandhi` RPC
 layer** (`sandhi_wd_*`; sandhi 1.4.1's close-path fix landed) and adds the **M3
 Android Appium backend** (`src/mobile.cyr`, on `sandhi_wd_*`/`sandhi_ap_*`).
@@ -35,25 +44,30 @@ backends stubbed pending transport-layer depth.
 
 ## Supported backends
 
-_None live yet — the scaffold compiles against the stdlib baseline with stubs. Planned backends, in order of expected implementation:_
-
 | Platform | Protocol | Status |
 |----------|----------|--------|
 | Chromium (headless + headed) | Chrome DevTools Protocol (WebSocket) | **LIVE (M1)** — open/navigate/click/type/url/eval/close, auto-waiting; e2e green against headless Chromium |
 | Firefox | W3C WebDriver (HTTP + JSON) | **LIVE (M2)** — `yantra_web_open("firefox")` via geckodriver |
-| WebKit (Safari, WebKitGTK) | W3C WebDriver | **LIVE (M2)** — same WebDriver wire as Firefox |
+| WebKit (WebKitGTK) | W3C WebDriver | **LIVE (M2)** — `yantra_web_open("webkit")`, same WebDriver wire as Firefox |
+| Safari (macOS) | W3C WebDriver (safaridriver) | **routed (0.4.1)** — `yantra_web_open("safari")`; live run blocked on macOS net (see note) |
 | Chrome | W3C WebDriver (chromedriver) | **LIVE (M2)** — e2e green (9/9) against chromedriver |
 | Android (native apps) | Appium → UiAutomator2 (on `sandhi_wd_*`/`sandhi_ap_*`) | **M3 implemented** — `yantra_mobile_open("android",…)`/`tap`/`type`/`close`; compile+link verified, live e2e pending an emulator (M6) |
-| iOS (native apps) | Appium → XCUITest | M4 — same code path (`yantra_mobile_open("ios",…)`); routing in place |
+| iOS (native apps) | Appium → XCUITest | **M4 scaffold (0.4.1)** — `yantra_mobile_open("ios",…)` + `yantra_mobile_set_ios_device`; caps/wire verified via curl; live run blocked on macOS net (see note) |
 
-> **HTTP-transport note (2026-06-03, updated for 0.4.0)**: the **M2 WebDriver
-> and M3 Appium** backends ride the stdlib **`sandhi`** RPC layer (`sandhi_wd_*`
-> / `sandhi_ap_*`) — sandhi 1.4.1 fixed the close-path drain that had forced a
-> temporary in-tree client ([architecture 002](../architecture/002-webdriver-uses-own-http-client.md),
-> now resolved). The **M1 CDP** backend keeps its own one-shot discovery GET
-> (Chromium's DevTools rejects HTTP/1.0 —
-> [architecture 001](../architecture/001-chromium-devtools-requires-http11.md));
+> **HTTP-transport note (updated 0.4.1)**: the **M2 WebDriver and M3 Appium**
+> backends ride the stdlib **`sandhi`** RPC layer (`sandhi_wd_*` / `sandhi_ap_*`)
+> — sandhi 1.4.1 fixed the close-path drain that had forced a temporary in-tree
+> client ([architecture 002](../architecture/002-webdriver-uses-own-http-client.md),
+> resolved). The **M1 CDP** backend keeps its own one-shot discovery GET
+> ([architecture 001](../architecture/001-chromium-devtools-requires-http11.md));
 > CDP commands ride `ws.cyr`.
+>
+> **macOS networking blocked (0.4.1)**: yantra builds + runs on macOS arm64, but
+> the cyrius stdlib `lib/net.cyr` uses Linux socket syscall numbers, so **no
+> socket connects on Darwin** — blocking the live Safari (safaridriver) and iOS
+> (Appium) runs there. Filed `cyrius/docs/development/issues/2026-06-04-macos-net-socket-syscalls-unported.md`.
+> Both code paths are verified correct up to the socket boundary; live runs
+> resume once net.cyr is ported.
 
 ## Transport layer (corrected 2026-06-03)
 

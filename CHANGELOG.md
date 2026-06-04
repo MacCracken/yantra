@@ -4,6 +4,39 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-04
+
+> Adds a Safari (safaridriver) web target and iOS simulator targeting, lands the
+> M4 iOS scaffold, and records first cross-platform (macOS arm64) validation.
+> M4 iOS-live is deferred on an upstream cyrius stdlib fix (see Known issues).
+
+### Added
+- **`yantra_web_open("safari")`** — Apple's built-in `safaridriver`
+  (`browserName: "safari"`, default port 4445), distinct from Playwright's
+  `"webkit"`. Routes through the same WebDriver path.
+- **iOS simulator targeting** — `yantra_mobile_set_ios_device(name, version)`
+  sets `appium:deviceName` / `appium:platformVersion` for XCUITest sessions.
+- **`tests/e2e/ios-appium-smoke.tcyr`** — M4 iOS acceptance scaffold
+  (open Settings → source → close). Compile+link verified.
+
+### Notes
+- **First cross-platform validation**: yantra builds and runs on **macOS arm64**
+  — smoke build, unit suite (2/2), lint (0 warnings), and `distlib` all green on
+  Apple Silicon with the `sandhi 1.4.1` lib. The full iOS toolchain (Xcode 26.5,
+  iOS 26.5 sim, Appium 3.5 + xcuitest 11.9) was stood up and the iOS session was
+  verified end-to-end via `curl` with yantra's exact capabilities (XCUITest
+  session created, WebDriverAgent launched).
+
+### Known issues
+- **M4 iOS-live blocked on a cyrius stdlib bug** — `lib/net.cyr` hardcodes Linux
+  socket syscall numbers (`SYS_SOCKET=41`/`SYS_CONNECT=42`), so on Darwin
+  `tcp_socket()` returns a garbage fd and `connect` fails (EBADF). This breaks
+  *all* yantra networking on macOS (CDP/WebDriver/Appium). yantra and sandhi are
+  correct; the gap is below them. Filed:
+  `cyrius/docs/development/issues/2026-06-04-macos-net-socket-syscalls-unported.md`.
+  yantra's iOS path is verified correct up to the socket boundary; the live run
+  resumes once net.cyr is ported to Darwin.
+
 ## [0.4.0] - 2026-06-03
 
 > Migrates the M2 WebDriver backend onto the stdlib `sandhi` RPC layer and
