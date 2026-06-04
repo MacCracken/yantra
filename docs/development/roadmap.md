@@ -8,20 +8,19 @@
 
 | Backend | Transport dep | Stdlib status (2026-06-03, verified vs 6.0.53) | Unblocked? |
 |---------|--------------|---------------------------|------------|
-| Chromium (CDP) | `lib/ws.cyr` (RFC 6455 client) | **Live — full framing, text/binary/ping/pong/close** | **Yes — can ship today** |
-| Firefox (W3C WebDriver) | `lib/http.cyr` POST + headers | **Still GET-only at 6.0.53** (`http_get_r` added v5.8.31) | No — open `http.cyr` gap |
-| WebKit (W3C WebDriver) | `lib/http.cyr` POST + headers + HTTPS | Still GET-only; HTTPS via `tls.cyr` bridge | No — open `http.cyr` gap |
-| Android (Appium / UiAutomator2) | `lib/http.cyr` POST + `lib/json.cyr` depth | Both still thin at 6.0.53 | No — open `http.cyr` gap |
-| iOS (Appium / XCUITest) | Same as Android | Same | No — open `http.cyr` gap |
+| Chromium (CDP) | `lib/ws.cyr` (RFC 6455 client) | **Live — full framing, text/binary/ping/pong/close** | **Yes — shipped (M1)** |
+| Firefox (W3C WebDriver) | `lib/sandhi.cyr` HTTP POST + headers | **Present** — full HTTP/1.1+2 client | **Yes (M2, in progress)** |
+| WebKit (W3C WebDriver) | `lib/sandhi.cyr` HTTP + HTTPS | Present (HTTPS via `tls.cyr` bridge) | **Yes (M2)** |
+| Android (Appium / UiAutomator2) | `lib/sandhi.cyr` HTTP POST + `json_v` | Both present | **Yes (M3)** |
+| iOS (Appium / XCUITest) | Same as Android | Same | **Yes (M4)** |
 
-**Critical observation**: the Chromium backend is unblocked today. CDP speaks only WebSocket, and `lib/ws.cyr` is complete.
+**Critical observation**: every backend is transport-unblocked. CDP rides `lib/ws.cyr`; WebDriver and Appium ride `lib/sandhi.cyr` (full HTTP/1.1+2: POST, headers, HTTPS) + `lib/json.cyr`'s value-tree.
 
-> **Correction (2026-06-03)**: the original table assumed the **v5.7.x** cycle
-> would land `http.cyr` POST/headers and `json.cyr` depth, unblocking M2–M4.
-> Re-verified against the **6.0.53** snapshot, that did **not** happen —
-> `http.cyr` is still GET-only and `json.cyr` is still basic. So M2–M4 remain
-> blocked on an **open** Cyrius-side `http.cyr` depth item, not a scheduled
-> one. M1 (Chromium/CDP) is unaffected and ships independently.
+> **Correction (2026-06-03, superseding an earlier wrong note)**: a prior
+> revision claimed M2–M4 were blocked because `lib/http.cyr` is GET-only. That
+> was an error — it overlooked **`lib/sandhi.cyr`**, the stdlib's full HTTP
+> client (`sandhi_http_post` with headers + body, HTTPS, etc.). The minimal
+> `http.cyr` is irrelevant; M2–M4 are not blocked. M1 already shipped.
 
 ## Milestones
 
@@ -54,11 +53,20 @@ yantra ~3× on navigate+click+assert, parity on navigate — numbers in state.md
 
 **Acceptance**: a `.tcyr` file using `yantra_web_open("chromium")` passes against a running headless Chromium instance. Benchmark vs Playwright-Python on the same navigation-click-assert flow, numbers into `state.md`.
 
-### M2 — Firefox / WebKit WebDriver backend (v0.3.0)
+### M2 — Firefox / WebKit WebDriver backend (shipped v0.3.0, 2026-06-03)
 
-*Unblocks when `lib/http.cyr` POST + custom headers + HTTPS integration lands (open Cyrius-side gap — still GET-only at 6.0.53).*
+✅ **Done.** `src/protocol/webdriver.cyr` (W3C WebDriver JSON wire over an
+in-tree Content-Length-framed HTTP/1.1 client — see architecture 002 for why not
+`sandhi`) + transport-aware `src/web.cyr`. `yantra_web_open("firefox"/"webkit")`
+routes to geckodriver/webkitwebdriver (port 4444); `"chrome"` to chromedriver
+(9515). Shared session semantics + auto-waiting with the CDP path. E2E **9/9**
+against live chromedriver (`tests/e2e/webdriver-smoke.tcyr`); the wire is
+identical for the Firefox/WebKit drivers. Selector translation: leading `/` →
+xpath, else css selector.
 
-- `src/protocol/webdriver.cyr` — W3C WebDriver JSON wire protocol against `lib/http.cyr` (post-depth)
+*Original scope:*
+
+- `src/protocol/webdriver.cyr` — W3C WebDriver JSON wire protocol
 - `yantra_web_open("firefox")` + `yantra_web_open("webkit")` routing
 - Selector translation: WebDriver's `css selector` / `xpath` / `link text` strategies
 - Shared session semantics with CDP — same `yantra_web_open` API, same auto-waiting, same `yantra_close` teardown
@@ -67,7 +75,7 @@ yantra ~3× on navigate+click+assert, parity on navigate — numbers in state.md
 
 ### M3 — Android Appium backend (v0.4.0)
 
-*Unblocks when `lib/http.cyr` + `lib/json.cyr` depth both land (open Cyrius-side gap — both still thin at 6.0.53).*
+*Unblocked — Appium is HTTP+JSON-RPC; rides `lib/sandhi.cyr` (POST + headers) and `lib/json.cyr`'s value-tree.*
 
 - `src/protocol/appium.cyr` — Appium JSON-RPC dialect
 - `src/mobile.cyr` — public API surface for `yantra_mobile_open("android", "com.example.app")`, `yantra_tap`, `yantra_type`, `yantra_close`
@@ -126,9 +134,9 @@ yantra ~3× on navigate+click+assert, parity on navigate — numbers in state.md
 - Published benchmark comparison: yantra vs Playwright (web 3×) + yantra vs Appium (mobile 2×)
 - **Knife article shipped**: *"Why UI Automation Belongs in Your Language"* (or whatever the final title is) — the receipts piece that counterpart to the yantra-is-a-library ADR
 
-## Why M1 can ship independent of the http.cyr gap
+## Why M1 shipped first
 
-CDP uses WebSocket end-to-end. `lib/ws.cyr` has full RFC 6455 client support today (handshake, framing, masking, ping/pong, close, text + binary frames). No HTTP dependency for the protocol itself once the initial target list is fetched — and that initial fetch can be done via the existing GET-only `lib/http.cyr` hitting Chromium's `/json/version` endpoint. Everything CDP needs is in stdlib right now.
+CDP uses WebSocket end-to-end. `lib/ws.cyr` has full RFC 6455 client support (handshake, framing, masking, ping/pong, close, text + binary frames). The only HTTP yantra's CDP backend needs is the one-shot target-list fetch, which it does with its own HTTP/1.1 GET (Chromium rejects HTTP/1.0 — see architecture note 001). So M1 needed only `ws.cyr` + a trivial GET, and shipped first. M2–M4 need HTTP POST/headers — present in the stdlib `sandhi` client, though yantra ships its own minimal Content-Length-framed client for now (see architecture 002) — so they were never blocked, just sequenced after M1.
 
 The other four backends all talk JSON-RPC over HTTP POST, which is why they batch together on the (still-open) `http.cyr` + `json.cyr` depth gate. Chromium doesn't share that constraint, so M1 gets to ship ahead.
 

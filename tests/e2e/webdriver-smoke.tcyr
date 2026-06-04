@@ -1,0 +1,56 @@
+# tests/e2e/webdriver-smoke.tcyr — yantra's M2 acceptance against a live
+# W3C WebDriver server (chromedriver here; the wire protocol is identical for
+# geckodriver/webkitwebdriver, so this exercises the Firefox/WebKit path too).
+#
+# Same flow and assertions as the CDP smoke, through the WebDriver backend:
+# open → navigate → url → type → click → eval → close, with auto-waiting.
+# Proves yantra drives a browser over W3C WebDriver (HTTP+JSON via sandhi).
+#
+# Run against a WebDriver server on its default port (chromedriver 9515):
+#   chromedriver --port=9515 &
+#   cyrius test tests/e2e/webdriver-smoke.tcyr
+#
+# Uses yantra_web_open("chrome") (chromedriver). Firefox/WebKit use the same
+# code path via yantra_web_open("firefox"/"webkit") against geckodriver/
+# webkitwebdriver on port 4444 (override with yantra_web_set_wd_port).
+
+# stdlib chain: net (sockets) + ws (CDP) + base64 (ws handshake) + json.
+# WebDriver rides its own minimal HTTP client over net.cyr — no sandhi/TLS.
+include "lib/net.cyr"
+include "lib/base64.cyr"
+include "lib/ws.cyr"
+include "lib/json.cyr"
+include "src/main.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+
+fn main() {
+    alloc_init();
+    test_group("webdriver-e2e");
+
+    var s = yantra_web_open("chrome");
+    assert(s != 0, "open chrome (chromedriver) session");
+    if (s == 0) { return assert_summary(); }
+
+    var ok = yantra_navigate(s, "data:text/html,<input id=n><input type=checkbox id=c>");
+    assert(ok == 1, "navigate to data URL");
+
+    var url = yantra_url(s);
+    assert(url != 0, "url is non-null");
+    assert(memeq(url, "data:text/html", 14) == 1, "url is the data page");
+
+    assert(yantra_type(s, "#n", "alice") == 1, "type into #n");
+    var v = yantra_eval_str(s, "document.querySelector(\"#n\").value");
+    assert_streq(v, "alice", "typed value round-trips");
+
+    assert(yantra_eval_bool(s, "document.querySelector(\"#c\").checked") == 0, "checkbox starts unchecked");
+    assert(yantra_click(s, "#c") == 1, "click #c");
+    assert(yantra_eval_bool(s, "document.querySelector(\"#c\").checked") == 1, "checkbox checked after click");
+
+    yantra_close(s);
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);

@@ -5,27 +5,34 @@ description = "Sovereign UI automation — browser + mobile, as a Cyrius library
 license = "GPL-3.0-only"
 repository = "https://github.com/MacCracken/yantra"
 language = "cyrius"
-cyrius = "6.0.53"
+cyrius = "6.0.55"
 
 # yantra is a **library** consumed by `.tcyr` test files — it is not a
 # test framework. `cyrius test` stays the runner. yantra adds the verbs:
 # `yantra_web_open`, `yantra_navigate`, `yantra_click`, `yantra_mobile_open`,
 # etc. — so a `.tcyr` file can drive a browser or a device natively.
 #
-# Transport dep chain (Cyrius stdlib as of v6.0.53 — verified against the
-# 6.0.53 snapshot, not aspirational):
+# Transport dep chain (Cyrius stdlib, verified against the 6.0.55 snapshot):
 #   ws.cyr     — RFC 6455 WebSocket client (full framing — CDP-ready). The
 #                only transport the M1 Chromium/CDP backend needs.
-#   http.cyr   — minimal HTTP/1.0 client. STILL GET-only at 6.0.53
-#                (`http_get`, `http_get_r`, `http_get_a`) — no POST / PUT /
-#                DELETE / custom headers. WebDriver + Appium (M2–M4) need
-#                that depth; it has NOT landed. `http_get_r` (Result-typed,
-#                v5.8.31) is the one relevant addition since 5.6.17.
-#   tls.cyr    — HTTPS via the libssl.so.3 `fdlopen` bridge. The native
-#                pure-Cyrius TLS 1.3 protocol layer (6.0.14–6.0.31) lives
-#                outside this client module; tls.cyr remains the bridge.
-#   json.cyr   — basic parse/build (`json_parse`, `json_get`,
-#                `json_get_int`). Deeper nesting/array coverage still thin.
+#   WebDriver/Appium HTTP — yantra's M2 (WebDriver) backend uses its OWN
+#                minimal HTTP/1.1 client (Content-Length-framed, over net.cyr),
+#                NOT the stdlib `sandhi`. Reason: `sandhi`'s `Connection: close`
+#                read path drains until EOF, which hangs against chromium-family
+#                servers (chromedriver, Chromium DevTools) that don't promptly
+#                close — see sandhi `docs/issues/2026-06-03-http-close-path-
+#                drains-until-eof.md` and yantra `docs/architecture/002`.
+#                `sandhi` (full HTTP/1.1+2: POST/headers/HTTPS) is otherwise the
+#                right client and is the intended transport once that's fixed.
+#   http.cyr   — the MINIMAL stdlib HTTP client (GET-only). Not used by yantra.
+#   tls.cyr    — HTTPS via the libssl.so.3 `fdlopen` bridge. Not needed for the
+#                localhost CDP/WebDriver transports (plain HTTP); relevant when
+#                the Appium/remote-HTTPS work lands. Native `tls_native.cyr` is
+#                still a v6.0.10 scaffold; the bridge is the working transport.
+#   json.cyr   — tagged value-tree parser/builder (`json_v_parse`,
+#                `json_v_obj_get`, `json_v_arr_*`, `json_v_str/int/bool`) —
+#                full nesting/arrays/typed values; carries WebDriver/Appium
+#                JSON cleanly.
 #   sakshi (2.2.6) / sigil (3.6.0) — bundled in the stdlib snapshot.
 #   NOTE: sigil 3.6.0 requires `thread.cyr` + `thread_local.cyr` included
 #   before it — see `[deps] stdlib` below (forward-looking for the M8
@@ -47,6 +54,7 @@ output = "build/yantra-smoke"
 modules = [
     "src/main.cyr",
     "src/protocol/cdp.cyr",
+    "src/protocol/webdriver.cyr",
     "src/web.cyr",
 ]
 
@@ -69,14 +77,13 @@ stdlib = [
     "chrono",
     "tagged",
     "assert",
-    # Transports the CDP backend (and future WebDriver/Appium) ride on.
-    # Consumers of dist/yantra.cyr get these resolved from their own
-    # [deps] stdlib; listed here so the manifest documents the real graph.
-    "net",
-    "http",
-    "ws",
-    "base64",
-    "json",
+    # Transports the backends ride on. Consumers of dist/yantra.cyr get
+    # these resolved from their own [deps] stdlib; listed here so the
+    # manifest documents the real graph.
+    "net",     # sockets — CDP + WebDriver minimal HTTP clients
+    "ws",      # M1 Chromium/CDP
+    "base64",  # ws handshake
+    "json",    # CDP + WebDriver/Appium JSON value tree
 ]
 
 # sakshi + sigil are now folded into Cyrius stdlib — include via

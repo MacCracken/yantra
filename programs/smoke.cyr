@@ -17,12 +17,12 @@
 include "lib/net.cyr"
 include "lib/base64.cyr"
 include "lib/ws.cyr"
-include "lib/http.cyr"
 include "lib/json.cyr"
 
 # yantra library modules — same order as cyrius.cyml [lib] modules.
 include "src/main.cyr"
 include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
 include "src/web.cyr"
 
 fn main() {

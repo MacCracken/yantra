@@ -45,12 +45,15 @@ yantra_tap(session, "@id/login_button");
 
 ## Status
 
-**0.2.1 — released.** **M1 Chromium/CDP backend is live** —
-`yantra_web_open("chromium")` drives a real headless browser (navigate / click
-/ type / url / eval / close, auto-waiting), with a green end-to-end test
-(`tests/e2e/chromium-smoke.tcyr`) and a Playwright parity benchmark. Firefox/
-WebKit (WebDriver) and mobile (Appium) fill in per
-[the roadmap](docs/development/roadmap.md), gated on `http.cyr` POST depth.
+**0.3.0.** Two live backends:
+- **Chromium via CDP** (M1) — `yantra_web_open("chromium")`, with a Playwright
+  parity benchmark.
+- **Firefox / WebKit / Chrome via W3C WebDriver** (M2) —
+  `yantra_web_open("firefox"/"webkit"/"chrome")`.
+
+Both drive a real headless browser (navigate / click / type / url / eval /
+close, auto-waiting) with green end-to-end tests. Mobile (Appium, M3/M4) is next
+— see [the roadmap](docs/development/roadmap.md).
 
 ## Build
 

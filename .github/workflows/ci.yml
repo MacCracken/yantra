@@ -85,3 +85,31 @@ jobs:
 
       - name: Run E2E (M1 acceptance)
         run: cyrius test tests/e2e/chromium-smoke.tcyr
+
+  e2e-webdriver:
+    name: E2E (WebDriver / chromedriver)
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Cyrius
+        uses: ./.github/actions/setup-cyrius
+
+      - name: Sync vendored lib
+        run: cyrius lib sync
+
+      - name: Launch chromedriver
+        run: |
+          DRIVER="$(command -v chromedriver)"
+          if [ -z "$DRIVER" ]; then echo "chromedriver not found on runner"; exit 1; fi
+          echo "using $DRIVER"
+          "$DRIVER" --port=9515 >/tmp/chromedriver.log 2>&1 &
+          for i in $(seq 1 50); do
+            curl -sf --max-time 2 http://127.0.0.1:9515/status >/dev/null 2>&1 && break
+            sleep 0.3
+          done
+          curl -sf http://127.0.0.1:9515/status || { echo "chromedriver did not come up"; cat /tmp/chromedriver.log; exit 1; }
+
+      - name: Run E2E (M2 acceptance)
+        run: cyrius test tests/e2e/webdriver-smoke.tcyr

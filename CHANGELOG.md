@@ -4,12 +4,46 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-03
+
+> Adds the **M2 WebDriver backend** (Firefox / WebKit / Chrome via W3C
+> WebDriver), corrects the transport-layer story, and bumps the toolchain to
+> Cyrius 6.0.55.
+
+### Added
+- **M2 — WebDriver backend.** `src/protocol/webdriver.cyr` implements the W3C
+  WebDriver JSON wire protocol (new session → navigate → find element → click /
+  clear / send keys → execute script → delete session). `yantra_web_open` now
+  routes `"firefox"`/`"webkit"` (geckodriver/webkitwebdriver, port 4444) and
+  `"chrome"` (chromedriver, port 9515) to it; `yantra_web_set_wd_port` overrides.
+  - `src/web.cyr` refactored to a **transport-aware** session (CDP vs
+    WebDriver): CDP drives the page via `Runtime.evaluate`, WebDriver via native
+    element finding (css selector / xpath) — shared auto-waiting either way.
+    Session struct extended to 32 bytes with a transport tag.
+  - `tests/e2e/webdriver-smoke.tcyr` — **9/9 passing** against live chromedriver
+    (open → navigate → url → type → click → eval → close). The wire protocol is
+    identical for geckodriver/webkitwebdriver.
+- New session-level verbs `yantra_eval_str` / `yantra_eval_bool` (page.evaluate
+  analog), transport-agnostic.
+
+### Changed
+- **Toolchain pin → 6.0.55** (was 6.0.53; the wrapper had drifted ahead).
+- **Corrected the transport-layer story.** Earlier docs claimed M2–M4 were
+  blocked because `lib/http.cyr` is GET-only. That was wrong — it overlooked
+  `lib/sandhi.cyr`, the stdlib's full HTTP/1.1+2 client. M2–M4 are not blocked.
+- **WebDriver uses yantra's own minimal Content-Length-framed HTTP client**
+  (over `net.cyr`), not `sandhi`. `sandhi`'s `Connection: close` read path drains
+  until EOF, which hangs against chromium-family servers (chromedriver, Chromium
+  DevTools) that don't promptly close. Filed as a sandhi-side bug
+  (`sandhi/docs/issues/2026-06-03-http-close-path-drains-until-eof.md`); yantra
+  will adopt `sandhi` for the WebDriver/Appium transport once it frames by
+  Content-Length. See `docs/architecture/002`.
+
 ## [0.2.1] - 2026-06-03
 
 > First release on the Cyrius 6.0.53 toolchain. Ships the modernized
 > build/CI/release pipeline, the benchmark system, and the **M1 Chromium/CDP
-> backend** — yantra's first live browser-automation backend. (M2
-> Firefox/WebKit remains blocked on `http.cyr` POST depth.)
+> backend** — yantra's first live browser-automation backend.
 
 ### Changed
 - **Toolchain bumped 5.6.17 → 6.0.53** (`cyrius.cyml [package].cyrius`).
@@ -68,10 +102,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Documentation accuracy: `state.md`, `roadmap.md`, and the `CLAUDE.md`
-  Quick Start corrected to the verified 6.0.53 reality — `lib/http.cyr` is
-  **still GET-only** (`http_get_r` added v5.8.31), `lib/json.cyr` still thin,
-  and native TLS (`lib/tls_native.cyr`) is a v6.0.10 scaffold, so M2–M4 remain
-  blocked on an open `http.cyr` gap (the v5.7.x unblock never materialized).
+  Quick Start updated to the verified 6.0.53 reality (toolchain, bundled lib
+  versions, native TLS `tls_native.cyr` being a v6.0.10 scaffold). _(A
+  transport-blocked claim made here was corrected in the next cycle — see
+  Unreleased; `sandhi` provides the full HTTP stack.)_
 
 ## [0.1.0]
 
