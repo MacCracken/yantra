@@ -96,15 +96,21 @@ session is a WebDriver-transport session, so the web verbs (`yantra_type` /
 **Acceptance** (M6 device matrix): `.tcyr` opens an Android emulator session,
 taps a resource-id, asserts, closes. Benchmark vs Appium-Python equivalent.
 
-### M4 — iOS Appium backend (v0.5.0)
+### M4 — iOS Appium backend (shipped v0.5.0, 2026-06-04)
 
-*Same unblock as M3 (http.cyr + json.cyr depth).*
+✅ **LIVE.** `yantra_mobile_open("ios", "<bundleId>")` drives a real iOS
+Simulator over Appium/XCUITest (via the shared `sandhi_wd_*`/`sandhi_ap_*` RPC
+layer + `src/mobile.cyr`). `tests/e2e/ios-appium-smoke.tcyr` passes **4/4**
+against an iOS 26.5 simulator (Appium 3.5 + xcuitest 11.9, cyrius 6.0.59 on the
+`ecb` Mac): open Settings → page source → tap a native cell (xpath) → close.
+Selector translation: `~accessibility-id`, `@id/`, `text:`, `/xpath`. WDA
+bootstrap is handled by Appium — yantra doesn't touch WDA directly.
 
-- `yantra_mobile_open("ios", "com.example.app")` routing to Appium's XCUITest driver
-- Selector translation: `~accessibility_label`, predicate strings, class-chain queries
-- WebdriverAgent-style session bootstrap handled via the Appium server — yantra doesn't need to know about WDA directly
+> Unblocked by cyrius **6.0.59**'s `net.cyr` Darwin socket port (the 0.4.1
+> macOS-networking blocker; cyrius issue `2026-06-04-macos-net-socket-syscalls-unported.md`).
 
-**Acceptance**: `.tcyr` file opens an iOS simulator session, taps an accessibility-label, asserts, closes. Benchmark vs Appium-Python.
+**Acceptance** (met): `.tcyr` opens an iOS simulator session, taps, asserts,
+closes. Benchmark vs Appium-Python — TODO (M6).
 
 ### M5 — Auto-teardown + resilience (v0.6.0)
 

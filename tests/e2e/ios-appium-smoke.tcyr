@@ -50,6 +50,10 @@ fn main() {
     assert(src != 0, "page source (XCUITest) is non-null");
     assert(strlen(src) > 100, "source is a substantial XCUITest hierarchy");
 
+    # Tap the first Settings table cell (xpath strategy → wd_find + wd_click on
+    # a real native element). Version-independent: Settings always has cells.
+    assert(yantra_tap(s, "//XCUIElementTypeCell") == 1, "tap first Settings cell");
+
     yantra_close(s);
     return assert_summary();
 }

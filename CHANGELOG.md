@@ -4,6 +4,35 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-04
+
+> **M4 — iOS Appium/XCUITest backend is live.** Toolchain → Cyrius 6.0.59,
+> which ports the stdlib socket layer to Darwin — unblocking all yantra
+> networking on macOS (the 0.4.1 known-issue). All five planned backends are now
+> implemented; web (CDP/WebDriver) and iOS are verified live.
+
+### Added
+- **M4 — iOS backend, live-verified.** `yantra_mobile_open("ios", "<bundleId>")`
+  drives a real iOS Simulator over Appium/XCUITest. `tests/e2e/ios-appium-smoke.tcyr`
+  passes **4/4** against an iOS 26.5 simulator (Appium 3.5 + xcuitest 11.9):
+  open Settings → page source → **tap a native cell (xpath → find + click)** →
+  close. Meets the roadmap M4 acceptance. Runs via the shared `sandhi_wd_*` /
+  `sandhi_ap_*` RPC layer — same path as M2/M3.
+
+### Changed
+- **Toolchain pin → 6.0.59** (was 6.0.57). 6.0.59 ports `lib/net.cyr` to Darwin
+  (BSD socket syscalls translated by the Mach-O backend; BSD `sockaddr_in` /
+  `SO_*` / `O_NONBLOCK` / `EINPROGRESS` constants `#ifdef CYRIUS_TARGET_MACOS`).
+  **Resolves** the 0.4.1 known-issue — yantra networking (CDP/WebDriver/Appium)
+  now works on macOS arm64. Verified: a raw `tcp_socket()`+`connect` on Darwin
+  now succeeds (was a garbage fd + EBADF). Filed/closed:
+  `cyrius/docs/development/issues/2026-06-04-macos-net-socket-syscalls-unported.md`.
+
+### Status
+- **Backends**: M1 Chromium/CDP (live), M2 Firefox/WebKit/Chrome/Safari WebDriver
+  (live), M3 Android Appium (implemented; live run pending an emulator), M4 iOS
+  Appium/XCUITest (**live**). yantra builds + runs on Linux x86_64 and macOS arm64.
+
 ## [0.4.1] - 2026-06-04
 
 > Adds a Safari (safaridriver) web target and iOS simulator targeting, lands the

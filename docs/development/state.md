@@ -6,14 +6,17 @@
 
 ## Version
 
+**0.5.0** — 2026-06-04. **M4 — iOS Appium/XCUITest backend is LIVE.**
+`yantra_mobile_open("ios", …)` drives a real iOS 26.5 simulator over Appium;
+`tests/e2e/ios-appium-smoke.tcyr` passes **4/4** (open → source → tap native cell
+→ close). Toolchain pin → **6.0.59**, which ports `lib/net.cyr` to Darwin —
+**resolving** the 0.4.1 macOS-networking blocker (all yantra networking now works
+on macOS arm64). All five planned backends implemented; web + iOS verified live.
+
 **0.4.1** — 2026-06-04. Adds a **Safari** web target (`yantra_web_open("safari")`,
 Apple safaridriver), **iOS simulator targeting** (`yantra_mobile_set_ios_device`),
-and the **M4 iOS scaffold**. **First cross-platform validation**: yantra builds +
-runs on **macOS arm64** (smoke/unit/lint/distlib green). M4 iOS-live is blocked
-on a cyrius stdlib bug — `lib/net.cyr` uses Linux socket syscall numbers, so all
-networking fails on Darwin (filed
-[cyrius issue 2026-06-04](https://github.com/MacCracken/cyrius); see CHANGELOG).
-yantra's iOS path is verified correct up to the socket boundary.
+and the **M4 iOS scaffold**. First cross-platform build validation on macOS arm64.
+(M4-live was blocked on a cyrius `net.cyr` Darwin-socket bug — resolved in 0.5.0.)
 
 **0.4.0** — 2026-06-03. Migrates **M2 WebDriver onto the stdlib `sandhi` RPC
 layer** (`sandhi_wd_*`; sandhi 1.4.1's close-path fix landed) and adds the **M3
@@ -33,7 +36,8 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.0.57` (in `cyrius.cyml [package].cyrius`). Vendored `lib/`
+- **Cyrius pin**: `6.0.59` (in `cyrius.cyml [package].cyrius`) — ports `net.cyr`
+  to Darwin (macOS networking). Vendored `lib/`
   is gitignored and materialized with `cyrius lib sync`.
 - **Bundled sandhi**: 1.4.1 (includes the `Connection: close` Content-Length
   framing fix that yantra's M2 WebDriver backend depends on).
@@ -49,10 +53,10 @@ backends stubbed pending transport-layer depth.
 | Chromium (headless + headed) | Chrome DevTools Protocol (WebSocket) | **LIVE (M1)** — open/navigate/click/type/url/eval/close, auto-waiting; e2e green against headless Chromium |
 | Firefox | W3C WebDriver (HTTP + JSON) | **LIVE (M2)** — `yantra_web_open("firefox")` via geckodriver |
 | WebKit (WebKitGTK) | W3C WebDriver | **LIVE (M2)** — `yantra_web_open("webkit")`, same WebDriver wire as Firefox |
-| Safari (macOS) | W3C WebDriver (safaridriver) | **routed (0.4.1)** — `yantra_web_open("safari")`; live run blocked on macOS net (see note) |
+| Safari (macOS) | W3C WebDriver (safaridriver) | **routed** — `yantra_web_open("safari")`; macOS net now works (0.5.0), runnable with `sudo safaridriver --enable` |
 | Chrome | W3C WebDriver (chromedriver) | **LIVE (M2)** — e2e green (9/9) against chromedriver |
 | Android (native apps) | Appium → UiAutomator2 (on `sandhi_wd_*`/`sandhi_ap_*`) | **M3 implemented** — `yantra_mobile_open("android",…)`/`tap`/`type`/`close`; compile+link verified, live e2e pending an emulator (M6) |
-| iOS (native apps) | Appium → XCUITest | **M4 scaffold (0.4.1)** — `yantra_mobile_open("ios",…)` + `yantra_mobile_set_ios_device`; caps/wire verified via curl; live run blocked on macOS net (see note) |
+| iOS (native apps) | Appium → XCUITest (on `sandhi_wd_*`/`sandhi_ap_*`) | **LIVE (M4)** — `yantra_mobile_open("ios",…)`/`tap`/`type`/`close`; e2e 4/4 against iOS 26.5 simulator |
 
 > **HTTP-transport note (updated 0.4.1)**: the **M2 WebDriver and M3 Appium**
 > backends ride the stdlib **`sandhi`** RPC layer (`sandhi_wd_*` / `sandhi_ap_*`)
@@ -62,12 +66,11 @@ backends stubbed pending transport-layer depth.
 > ([architecture 001](../architecture/001-chromium-devtools-requires-http11.md));
 > CDP commands ride `ws.cyr`.
 >
-> **macOS networking blocked (0.4.1)**: yantra builds + runs on macOS arm64, but
-> the cyrius stdlib `lib/net.cyr` uses Linux socket syscall numbers, so **no
-> socket connects on Darwin** — blocking the live Safari (safaridriver) and iOS
-> (Appium) runs there. Filed `cyrius/docs/development/issues/2026-06-04-macos-net-socket-syscalls-unported.md`.
-> Both code paths are verified correct up to the socket boundary; live runs
-> resume once net.cyr is ported.
+> **macOS networking (resolved 0.5.0)**: the 0.4.1 blocker — cyrius `lib/net.cyr`
+> using Linux socket syscall numbers on Darwin — is fixed in **6.0.59** (Darwin
+> socket port). yantra networking now works on macOS arm64; the M4 iOS e2e runs
+> live (4/4). cyrius issue
+> `2026-06-04-macos-net-socket-syscalls-unported.md` resolved.
 
 ## Transport layer (corrected 2026-06-03)
 
@@ -201,8 +204,10 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
 3. **M3 — Android Appium backend** (v0.4.0). ✅ **Implemented** — `src/mobile.cyr`
    on `sandhi_wd_*`/`sandhi_ap_*`; compile+link verified. **Live e2e pending an
    Android emulator + Appium server** (M6 device matrix).
-4. **M4 — iOS Appium backend** (v0.5.0). Routing in place (`yantra_mobile_open("ios",…)`
-   → XCUITest); same code path as M3.
-5. **M5 onward** — auto-teardown, CI matrix, docs, security hardening, v1.0.
+4. **M4 — iOS Appium backend** (shipped v0.5.0). ✅ **LIVE** — `yantra_mobile_open("ios",…)`
+   drives a real iOS 26.5 simulator over Appium/XCUITest; e2e 4/4
+   (open → source → tap → close). Verified on `ecb` (arm64 macOS), cyrius 6.0.59.
+5. **M5 onward** — auto-teardown, CI matrix (incl. Android emulator + iOS sim),
+   docs, security hardening, v1.0.
 
 Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.
