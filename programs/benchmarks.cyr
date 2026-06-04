@@ -1,0 +1,58 @@
+# programs/benchmarks.cyr — yantra's incumbent-parity benchmark program.
+#
+# Mirrors mabda's `programs/benchmarks.cyr` (its "Rust-v1 parity set"):
+# the place where yantra's per-operation timings get measured against the
+# same operation on the incumbent (Playwright for web, Appium for mobile)
+# on identical workloads — the receipts behind the ROADMAP M6 / v1.0
+# "published benchmark comparison" criterion.
+#
+# Build + run:
+#   cyrius build programs/benchmarks.cyr build/yantra-benchmarks
+#   ./build/yantra-benchmarks
+#
+# STATUS: scaffold. The parity flows below need a live backend (M1
+# Chromium/CDP first). Until one lands this program prints the planned
+# matrix and runs the primitive micro-benchmarks that exist today, then
+# exits 0 so it stays green in CI. Fast-path micro-benchmarks live in
+# `tests/yantra.bcyr`; this program is the end-to-end comparison harness.
+
+include "lib/bench.cyr"
+include "src/main.cyr"
+
+var _sess = 0;
+
+fn b_kind()    { return yantra_session_kind(_sess); }
+fn b_version() { return yantra_version(); }
+
+fn main() {
+    alloc_init();
+
+    println("=== yantra parity benchmarks ===");
+    println("");
+    println("Planned comparison matrix (lands per backend — ROADMAP M6):");
+    println("  web/chromium  navigate+click+assert   vs Playwright (Chromium)");
+    println("  web/firefox   navigate+click+assert   vs Playwright (Firefox)");
+    println("  web/webkit    navigate+click+assert   vs Playwright (WebKit)");
+    println("  mobile/android tap+assert             vs Appium (UiAutomator2)");
+    println("  mobile/ios     tap+assert             vs Appium (XCUITest)");
+    println("");
+    println("No live backend yet — running available primitive benches:");
+
+    _sess = alloc(24);
+    store64(_sess, YANTRA_KIND_WEB);
+    store64(_sess + 8, 0);
+    store64(_sess + 16, 0);
+
+    var bk = bench_new("session_kind");
+    bench_run_batch(bk, &b_kind, 100000, 50);
+    bench_report(bk);
+
+    var bv = bench_new("version");
+    bench_run_batch(bv, &b_version, 100000, 50);
+    bench_report(bv);
+
+    return 0;
+}
+
+var exit_code = main();
+syscall(60, exit_code);

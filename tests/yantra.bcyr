@@ -1,11 +1,55 @@
-# yantra benchmarks
-# Stdlib auto-included via cyrius.toml
+# yantra benchmarks — micro-benchmarks of the library primitives.
+#
+# `cyrius bench tests/yantra.bcyr` auto-includes the stdlib + the
+# `bench.cyr` framework; only the yantra surface needs an explicit
+# include. These measure the session-primitive decode paths that exist
+# today. The end-to-end *parity* benchmarks (yantra vs Playwright on
+# navigate-click-assert; yantra vs Appium on tap-assert) land with the
+# first live backend and live in `programs/benchmarks.cyr` — see
+# ROADMAP M1/M6. Results feed `scripts/bench-history.sh` →
+# `bench-history.csv` (the AGNOS bench-history convention).
 
-fn bench_noop() { return 0; }
+include "lib/bench.cyr"
+include "src/main.cyr"
+
+# A representative web-session record, allocated in main(). Benchmark
+# wrappers are zero-arg (Cyrius has no closures) and read this global.
+var _bench_sess = 0;
+
+fn bench_session_kind()    { return yantra_session_kind(_bench_sess); }
+fn bench_session_backend() { return yantra_session_backend(_bench_sess); }
+fn bench_session_flags()   { return yantra_session_flags(_bench_sess); }
+fn bench_version()         { return yantra_version(); }
 
 fn main() {
     alloc_init();
-    bench("noop", &bench_noop, 1000000);
+
+    _bench_sess = alloc(24);
+    store64(_bench_sess, YANTRA_KIND_WEB);
+    store64(_bench_sess + 8, 0);
+    store64(_bench_sess + 16, 0);
+
+    println("=== yantra micro-benchmarks ===");
+    println("(primitive decode paths only; Playwright/Appium parity");
+    println(" benchmarks land with the first live backend — ROADMAP M1/M6)");
+
+    # Sub-100ns ops — batch timing avoids per-iteration clock overhead.
+    var bk = bench_new("session_kind");
+    bench_run_batch(bk, &bench_session_kind, 100000, 50);
+    bench_report(bk);
+
+    var bb = bench_new("session_backend");
+    bench_run_batch(bb, &bench_session_backend, 100000, 50);
+    bench_report(bb);
+
+    var bf = bench_new("session_flags");
+    bench_run_batch(bf, &bench_session_flags, 100000, 50);
+    bench_report(bf);
+
+    var bv = bench_new("version");
+    bench_run_batch(bv, &bench_version, 100000, 50);
+    bench_report(bv);
+
     return 0;
 }
 

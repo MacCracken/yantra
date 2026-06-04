@@ -1,0 +1,30 @@
+# tests/e2e/chromium-smoke.tcyr — yantra's own E2E smoke against a live
+# headless Chromium. The acceptance test for ROADMAP M1.
+#
+# This is yantra dogfooding itself: the library's own test suite uses
+# yantra to drive a real browser, the same way mabda's
+# `programs/*_e2e.cyr` exercise a real GPU device. It runs against a
+# headless Chromium reachable at the CDP endpoint and does a full round
+# trip — open, navigate, click, assert URL, close.
+#
+# Run (M1+; needs headless Chromium with --remote-debugging-port):
+#   cyrius test tests/e2e/chromium-smoke.tcyr
+#
+# STATUS: scaffold. The CDP backend (src/protocol/cdp.cyr + src/web.cyr)
+# is not implemented yet, so this is held out of the default `cyrius test`
+# path and runs only in the M6 CI matrix once a backend is live. It
+# encodes the M1 acceptance criterion as executable intent.
+
+include "src/web.cyr"
+
+fn test_chromium_round_trip() {
+    var session = yantra_web_open("chromium");
+    yantra_navigate(session, "https://example.com/");
+    yantra_click(session, "a");
+    assert_streq(yantra_url(session), "https://www.iana.org/help/example-domains", "navigated via link");
+    yantra_close(session);
+    return assert_summary();
+}
+
+var exit_code = test_chromium_round_trip();
+syscall(60, exit_code);

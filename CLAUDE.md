@@ -40,12 +40,19 @@ Project was scaffolded with `cyrius init yantra`. **Do not manually create proje
 ## Quick Start
 
 ```bash
-cyrius deps                                          # resolve sibling deps
-cyrius build src/main.cyr build/yantra               # build
-cyrius test src/test.cyr                             # unit tests
-cyrius lint src/*.cyr                                # static checks
-CYRIUS_DCE=1 cyrius build src/main.cyr build/yantra  # release-parity build
+cyrius lib sync                                          # sync vendored lib/ to the pin
+cyrius build programs/smoke.cyr build/yantra-smoke       # link-check the include chain
+cyrius test tests/yantra.tcyr                            # unit tests
+cyrius bench tests/yantra.bcyr                           # micro-benchmarks
+cyrius lint src/main.cyr                                 # static checks
+cyrius fmt src/main.cyr --check                          # format check
+cyrius distlib                                           # bundle → dist/yantra.cyr
+CYRIUS_DCE=1 cyrius build programs/smoke.cyr build/yantra-smoke  # release-parity build
 ```
+
+> `src/main.cyr` is the **library** (no `main()`); build `programs/smoke.cyr`
+> to link-check it. `cyrius distlib` concatenates the `[lib] modules` into
+> `dist/yantra.cyr` — the bundle downstream `.tcyr` consumers vendor.
 
 ## Architecture
 

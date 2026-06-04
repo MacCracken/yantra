@@ -1,0 +1,50 @@
+name: Setup Cyrius
+description: Install and cache the Cyrius toolchain pinned in cyrius.cyml.
+
+inputs:
+  version:
+    description: "Cyrius version to install. Defaults to the [package].cyrius pin in cyrius.cyml."
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve toolchain version
+      id: ver
+      shell: bash
+      run: |
+        V="${{ inputs.version }}"
+        if [ -z "$V" ]; then
+          V="$(grep 'cyrius *= *"' cyrius.cyml | head -1 | sed 's/.*"\(.*\)"/\1/')"
+        fi
+        if [ -z "$V" ]; then echo "could not resolve Cyrius version"; exit 1; fi
+        echo "version=$V" >> "$GITHUB_OUTPUT"
+        echo "Cyrius version: $V"
+
+    - name: Cache toolchain
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cyrius
+        key: cyrius-${{ runner.os }}-${{ steps.ver.outputs.version }}
+
+    - name: Install toolchain
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        V="${{ steps.ver.outputs.version }}"
+        echo "Installing Cyrius $V"
+        curl -sLO "https://github.com/MacCracken/cyrius/releases/download/$V/cyrius-$V-x86_64-linux.tar.gz"
+        tar xzf "cyrius-$V-x86_64-linux.tar.gz"
+        D="cyrius-$V-x86_64-linux"
+        mkdir -p "$HOME/.cyrius/bin" "$HOME/.cyrius/lib"
+        cp "$D/bin/"* "$HOME/.cyrius/bin/" 2>/dev/null || true
+        cp -r "$D/lib/"* "$HOME/.cyrius/lib/" 2>/dev/null || true
+        chmod +x "$HOME/.cyrius/bin/"* 2>/dev/null || true
+
+    - name: Export PATH and CYRIUS_HOME
+      shell: bash
+      run: |
+        echo "$HOME/.cyrius/bin" >> "$GITHUB_PATH"
+        echo "CYRIUS_HOME=$HOME/.cyrius" >> "$GITHUB_ENV"

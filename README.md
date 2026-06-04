@@ -49,10 +49,15 @@ yantra_tap(session, "@id/login_button");
 
 ## Build
 
+`src/main.cyr` is the library (no `main()`); build the smoke program to
+link-check it, and bundle with `cyrius distlib`.
+
 ```sh
-cyrius deps
-cyrius build src/main.cyr build/yantra
-cyrius test src/test.cyr
+cyrius lib sync                                     # sync vendored lib/ to the pin
+cyrius build programs/smoke.cyr build/yantra-smoke  # link-check
+cyrius test tests/yantra.tcyr                       # unit tests
+cyrius bench tests/yantra.bcyr                       # micro-benchmarks
+cyrius distlib                                      # → dist/yantra.cyr
 ```
 
 ## License

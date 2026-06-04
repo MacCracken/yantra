@@ -1,0 +1,33 @@
+# examples/web-consumer/login.tcyr — minimal "hello browser" reference.
+#
+# The yantra analog of mabda's `examples/stdlib-consumer/` "hello GPU"
+# project: the smallest realistic `.tcyr` a downstream consumer writes.
+# It shows the whole shape — open a session, drive the page, assert,
+# close — using the same `cyrius test` runner the consumer already has.
+# No separate framework, no config file, no CI plugin.
+#
+# Run (once the M1 Chromium/CDP backend is live):
+#   cyrius test examples/web-consumer/login.tcyr
+#
+# Consumers vendor the library as `lib/yantra.cyr` (from `dist/yantra.cyr`,
+# produced by `cyrius distlib`) and `include` it. The verbs below are the
+# M1 public surface — see ROADMAP.md. Until M1 lands this file documents
+# the target API and is not yet runnable end-to-end.
+
+include "lib/yantra.cyr"
+
+fn test_login_redirects_to_dashboard() {
+    var session = yantra_web_open("chromium");
+    yantra_navigate(session, "https://example.com/login");
+    yantra_type(session, "#username", "alice");
+    yantra_type(session, "#password", "secret");
+    yantra_click(session, "button[type=submit]");
+    # Auto-waiting is implicit: each action waits for element-actionable
+    # before operating (Playwright-style), so no manual sleeps here.
+    assert_streq(yantra_url(session), "https://example.com/dashboard", "redirect");
+    yantra_close(session);
+    return assert_summary();
+}
+
+var exit_code = test_login_redirects_to_dashboard();
+syscall(60, exit_code);

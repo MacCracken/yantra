@@ -1,0 +1,5 @@
+timestamp,commit,benchmark,avg_ns,min_ns,max_ns,iters
+2026-06-04T00:14:14Z,ceff869,session_kind,5,5,7,5000000
+2026-06-04T00:14:14Z,ceff869,session_backend,6,5,7,5000000
+2026-06-04T00:14:14Z,ceff869,session_flags,5,5,7,5000000
+2026-06-04T00:14:14Z,ceff869,version,5,4,6,5000000

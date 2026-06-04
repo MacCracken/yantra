@@ -5,21 +5,31 @@ description = "Sovereign UI automation — browser + mobile, as a Cyrius library
 license = "GPL-3.0-only"
 repository = "https://github.com/MacCracken/yantra"
 language = "cyrius"
-cyrius = "5.6.17"
+cyrius = "6.0.53"
 
 # yantra is a **library** consumed by `.tcyr` test files — it is not a
 # test framework. `cyrius test` stays the runner. yantra adds the verbs:
 # `yantra_web_open`, `yantra_navigate`, `yantra_click`, `yantra_mobile_open`,
 # etc. — so a `.tcyr` file can drive a browser or a device natively.
 #
-# Transport dep chain (all in Cyrius stdlib as of v5.6.17):
-#   http.cyr   — minimal HTTP/1.0 client (GET-only today; POST/headers/HTTPS
-#                depth pinned for v5.7.x per cyrius roadmap)
-#   ws.cyr     — RFC 6455 WebSocket client (full framing — CDP-ready)
-#   tls.cyr    — TLS via libssl.so.3 dynlib bridge (pure-Cyrius TLS 1.3
-#                pinned for v5.9.0–v5.9.7 per cyrius roadmap)
-#   json.cyr   — basic JSON parse/build (deeper coverage pinned for v5.7.x)
-#   sakshi / sigil — also folded into Cyrius stdlib
+# Transport dep chain (Cyrius stdlib as of v6.0.53 — verified against the
+# 6.0.53 snapshot, not aspirational):
+#   ws.cyr     — RFC 6455 WebSocket client (full framing — CDP-ready). The
+#                only transport the M1 Chromium/CDP backend needs.
+#   http.cyr   — minimal HTTP/1.0 client. STILL GET-only at 6.0.53
+#                (`http_get`, `http_get_r`, `http_get_a`) — no POST / PUT /
+#                DELETE / custom headers. WebDriver + Appium (M2–M4) need
+#                that depth; it has NOT landed. `http_get_r` (Result-typed,
+#                v5.8.31) is the one relevant addition since 5.6.17.
+#   tls.cyr    — HTTPS via the libssl.so.3 `fdlopen` bridge. The native
+#                pure-Cyrius TLS 1.3 protocol layer (6.0.14–6.0.31) lives
+#                outside this client module; tls.cyr remains the bridge.
+#   json.cyr   — basic parse/build (`json_parse`, `json_get`,
+#                `json_get_int`). Deeper nesting/array coverage still thin.
+#   sakshi (2.2.6) / sigil (3.6.0) — bundled in the stdlib snapshot.
+#   NOTE: sigil 3.6.0 requires `thread.cyr` + `thread_local.cyr` included
+#   before it — see `[deps] stdlib` below (forward-looking for the M8
+#   cert-verification path; yantra does not include sigil yet).
 #
 # Downstream consumers include via `dist/yantra.cyr` — the bundled
 # single-file distribution that `cyrius distlib` builds from the
@@ -52,6 +62,7 @@ stdlib = [
     "hashmap",
     "process",
     "thread",
+    "thread_local",
     "fnptr",
     "chrono",
     "tagged",
