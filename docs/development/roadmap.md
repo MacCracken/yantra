@@ -75,13 +75,20 @@ css/id default).
 
 **Acceptance**: the M1 smoke test file runs unchanged except for the opener call against Firefox headless and WebKit headless. Numbers into `state.md`.
 
-### M3 — Android Appium backend (v0.4.0)
+### M3 — Android Appium backend (implemented v0.4.0, **LIVE** 2026-06-04)
 
-✅ **Implemented** (live e2e pending an emulator). `src/mobile.cyr` rides the
+✅ **LIVE.** `src/mobile.cyr` rides the
 stdlib `sandhi` WebDriver/Appium RPC (`sandhi_wd_*` + `sandhi_ap_*`). A mobile
 session is a WebDriver-transport session, so the web verbs (`yantra_type` /
 `yantra_close` / `yantra_eval_*`) work directly; M3 adds the Appium opener and
 `yantra_tap`/`yantra_tap_now`/`yantra_mobile_source`.
+
+`tests/e2e/android-appium-smoke.tcyr` passes **4/4** against a live
+android-34 / google_apis x86_64 emulator (Appium 3.x + uiautomator2, KVM,
+cyrius 6.0.59): open `com.android.settings` → page source → tap first clickable
+element → close. Android caps set `appium:skipDeviceInitialization` to bypass
+the `io.appium.settings` helper, which fails to register on stock emulator
+images (architecture [003](../architecture/003-android-skip-device-initialization.md)).
 
 - `src/mobile.cyr` — `yantra_mobile_open("android", "<pkg>")` (UiAutomator2),
   `yantra_tap`, `yantra_tap_now`, `yantra_mobile_source`; `yantra_mobile_set_port`
@@ -93,8 +100,9 @@ session is a WebDriver-transport session, so the web verbs (`yantra_type` /
 - `tests/e2e/android-appium-smoke.tcyr` — acceptance scaffold; compile+link
   verified.
 
-**Acceptance** (M6 device matrix): `.tcyr` opens an Android emulator session,
-taps a resource-id, asserts, closes. Benchmark vs Appium-Python equivalent.
+**Acceptance** (met): `.tcyr` opens an Android emulator session, reads the
+UiAutomator2 hierarchy, taps a native widget, closes — 4/4. Benchmark vs
+Appium-Python — TODO (M6).
 
 ### M4 — iOS Appium backend (shipped v0.5.0, 2026-06-04)
 

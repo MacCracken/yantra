@@ -45,21 +45,23 @@ yantra_tap(session, "@id/login_button");
 
 ## Status
 
-**0.5.0.** All five planned backends implemented:
+**0.6.1.** All five planned backends **live**:
 - **Chromium via CDP** (M1) — `yantra_web_open("chromium")`, with a Playwright
   parity benchmark.
 - **Firefox / WebKit / Chrome / Safari via W3C WebDriver** (M2) —
   `yantra_web_open("firefox"/"webkit"/"chrome"/"safari")`, on the stdlib `sandhi` RPC layer.
 - **iOS via Appium/XCUITest** (M4) — `yantra_mobile_open("ios", "<bundleId>")`
   + `yantra_tap` / `yantra_type` / `yantra_close`. **Live** (e2e 4/4 vs iOS 26.5 sim).
-- **Android via Appium/UiAutomator2** (M3) — same API; implemented (live run lands with the M6 emulator matrix).
+- **Android via Appium/UiAutomator2** (M3) — same API. **Live** (e2e 4/4 vs an
+  android-34 x86_64 emulator).
 
 **Resilience (M5):** auto-teardown of leaked sessions (`yantra_exit` /
 `yantra_teardown_all`), a structured error surface (`yantra_last_error`),
 retry-on-transient connects, and opt-in tracing spans (`yantra_trace_enable`).
 
-Verified live: CDP 11/11, WebDriver 9/9, iOS 4/4 (+ M5 offline 14/14). Runs on
-Linux x86_64 and **macOS arm64**. See [the roadmap](docs/development/roadmap.md).
+Verified live: CDP 11/11, WebDriver 9/9, iOS 4/4, Android 4/4 (+ M5 offline
+14/14). Runs on Linux x86_64 and **macOS arm64**. See
+[the roadmap](docs/development/roadmap.md).
 
 ## Build
 

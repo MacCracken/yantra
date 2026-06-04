@@ -50,6 +50,40 @@ fn wd_connect(port, caps_json): i64 {
     return wd;
 }
 
+# Open a session with an explicit (long) timeout. Mobile session creation —
+# Appium installing the UiAutomator2 server / building WebDriverAgent — can take
+# 60s+, which blows past sandhi's default RPC timeout (~30s). We POST /session
+# via `sandhi_http_post_opts` with a generous read/total budget and parse the
+# sessionId ourselves. Returns a wd handle (base, session_id) or 0.
+fn wd_connect_timeout(port, caps_json, total_ms): i64 {
+    var base = _wd_base_url(port);
+    var url = alloc(strlen(base) + 16);
+    var o = _cdp_b_cstr(url, 0, base);
+    o = _cdp_b_cstr(url, o, "/session");
+    store8(url + o, 0);
+
+    var h = sandhi_headers_new();
+    sandhi_headers_set(h, "Content-Type", "application/json");
+    sandhi_headers_set(h, "Accept", "application/json");
+    var opts = sandhi_http_options_new();
+    sandhi_http_options_connect_ms(opts, 15000);
+    sandhi_http_options_read_ms(opts, total_ms);
+    sandhi_http_options_total_ms(opts, total_ms);
+
+    var resp = sandhi_http_post_opts(url, h, caps_json, strlen(caps_json), opts);
+    if (resp == 0) { return 0; }
+    if (sandhi_http_err_kind(resp) != 0) { return 0; }
+    var st = sandhi_http_status(resp);
+    if (st < 200) { return 0; }
+    if (st >= 300) { return 0; }
+    var body = sandhi_http_body(resp);
+    if (body == 0) { return 0; }
+    var sid = sandhi_json_get_string(body, "value.sessionId");
+    if (sid == 0) { sid = sandhi_json_get_string(body, "sessionId"); }
+    if (sid == 0) { return 0; }
+    return wd_handle_new(base, sid);
+}
+
 # Navigate to url. Returns 1 on success.
 fn wd_navigate(wd, url): i64 {
     return sandhi_rpc_ok(sandhi_wd_navigate_to(wd_base(wd), wd_session_id(wd), url));

@@ -4,6 +4,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-04
+
+> **M3 — Android Appium backend now LIVE.** The Android/UiAutomator2 path,
+> implemented in 0.4.0, is verified end-to-end against a real emulator.
+
+### Added
+- `appium:skipDeviceInitialization` + `appium:disableWindowAnimation` to the
+  Android session caps. The first bypasses Appium's `io.appium.settings` helper
+  app, which fails to register on common emulator system images
+  (`Package io.appium.settings unavailable`, `START … result code=-92`) and
+  aborts session creation. The UiAutomator2 server that drives
+  find/click/source is a separate install and is unaffected, so skipping the
+  settings helper makes the session reliable without losing the verbs yantra
+  uses. See `docs/architecture/003-android-skip-device-initialization.md`.
+
+### Verified
+- **Android e2e 4/4** (`tests/e2e/android-appium-smoke.tcyr`) against a live
+  Android-34 / google_apis x86_64 emulator (Appium 3.x + uiautomator2, KVM,
+  cyrius 6.0.59): open `com.android.settings` → page source (UiAutomator2 XML)
+  → tap first clickable element → close. **All five backends are now live.**
+
 ## [0.6.0] - 2026-06-04
 
 > **M5 — auto-teardown + resilience.** Sessions auto-tear-down on exit, failures

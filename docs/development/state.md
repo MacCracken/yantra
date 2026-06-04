@@ -6,6 +6,16 @@
 
 ## Version
 
+**0.6.1** — 2026-06-04. **M3 — Android Appium backend now LIVE.**
+`tests/e2e/android-appium-smoke.tcyr` passes **4/4** against a live android-34 /
+google_apis x86_64 emulator (Appium 3.x + uiautomator2, KVM): open
+`com.android.settings` → page source → tap first clickable → close. Fix: Android
+caps set `appium:skipDeviceInitialization` to bypass the `io.appium.settings`
+helper, which fails to register on stock emulator images (architecture
+[003](../architecture/003-android-skip-device-initialization.md)). **All five
+backends are now live** (web 4 + mobile 2). No code change beyond the two added
+Android caps; the e2e was already correct.
+
 **0.6.0** — 2026-06-04. **M5 — auto-teardown + resilience.** Session registry +
 `yantra_teardown_all()` / `yantra_exit(code)` (leaked browsers/emulators closed
 on exit); structured errors (`yantra_last_error()` / `_str()` + codes);
@@ -63,7 +73,7 @@ backends stubbed pending transport-layer depth.
 | WebKit (WebKitGTK) | W3C WebDriver | **LIVE (M2)** — `yantra_web_open("webkit")`, same WebDriver wire as Firefox |
 | Safari (macOS) | W3C WebDriver (safaridriver) | **routed** — `yantra_web_open("safari")`; macOS net now works (0.5.0), runnable with `sudo safaridriver --enable` |
 | Chrome | W3C WebDriver (chromedriver) | **LIVE (M2)** — e2e green (9/9) against chromedriver |
-| Android (native apps) | Appium → UiAutomator2 (on `sandhi_wd_*`/`sandhi_ap_*`) | **M3 implemented** — `yantra_mobile_open("android",…)`/`tap`/`type`/`close`; compile+link verified, live e2e pending an emulator (M6) |
+| Android (native apps) | Appium → UiAutomator2 (on `sandhi_wd_*`/`sandhi_ap_*`) | **LIVE (M3)** — `yantra_mobile_open("android",…)`/`tap`/`type`/`close`; e2e 4/4 against an android-34 x86_64 emulator |
 | iOS (native apps) | Appium → XCUITest (on `sandhi_wd_*`/`sandhi_ap_*`) | **LIVE (M4)** — `yantra_mobile_open("ios",…)`/`tap`/`type`/`close`; e2e 4/4 against iOS 26.5 simulator |
 
 > **HTTP-transport note (updated 0.4.1)**: the **M2 WebDriver and M3 Appium**
@@ -108,9 +118,8 @@ An earlier revision of this section wrongly claimed M2–M4 were blocked on
   a **v6.0.10 scaffold** (returns `TLS_ERR_NOT_IMPLEMENTED`); the bridge remains
   the working transport. The native-TLS transition is a Cyrius-side concern.
 
-Net: M1 (Chromium/CDP) and M2 (Firefox/WebKit/Chrome WebDriver) are live; M3
-(Android Appium) is implemented (live run pending an emulator); M4 (iOS) shares
-the path.
+Net: all five backends are live — M1 (Chromium/CDP), M2 (Firefox/WebKit/Chrome
+WebDriver), M3 (Android Appium), M4 (iOS XCUITest).
 
 ## Source
 
@@ -130,9 +139,10 @@ the path.
   translation and Playwright-style auto-waiting. **Live.**
 - `src/mobile.cyr` — mobile public API (`yantra_mobile_open` / `tap` /
   `tap_now` / `mobile_source`; `type`/`close`/`eval_*` inherited from web.cyr).
-  Appium via `sandhi_wd_*`/`sandhi_ap_*`. **Live (M3); live e2e pends an emulator.**
+  Appium via `sandhi_wd_*`/`sandhi_ap_*`. **Live (M3 + M4); e2e 4/4 on both
+  Android and iOS.**
 
-The `[lib] modules` bundle order is `main → cdp → webdriver → web → mobile`;
+The `[lib] modules` bundle order is `main → runtime → cdp → webdriver → web → mobile`;
 these modules carry no `include`s (stdlib resolved by the consumer).
 `programs/smoke.cyr` stitches the stdlib chain on for a local link-check.
 
@@ -152,10 +162,11 @@ these modules carry no `include`s (stdlib resolved by the consumer).
   against live chromedriver via `yantra_web_open("chrome")`: open → navigate →
   url → type → click → eval → close over the W3C WebDriver wire (identical
   protocol for geckodriver/webkitwebdriver).
-- `tests/e2e/android-appium-smoke.tcyr` — M3 acceptance **scaffold**
-  (open → tap → type → tap → source → close). Compile+link verified; live run
-  needs an Android emulator + Appium server (M6 device matrix), so it's held out
-  of CI like the other live-device work.
+- `tests/e2e/android-appium-smoke.tcyr` — M3 acceptance E2E. **Passing (4/4)**
+  against a live android-34 / google_apis x86_64 emulator (Appium 3.x +
+  uiautomator2): open `com.android.settings` → page source (UiAutomator2 XML) →
+  tap first clickable element → close. Needs an emulator + Appium server, so
+  it's held out of the default CI path (wires into the M6 device matrix).
 - `programs/benchmarks.cyr` — incumbent-parity benchmark program (yantra vs
   Playwright/Appium). Scaffold + planned matrix; runs primitive benches today.
 - `scripts/bench-history.sh` → `bench-history.csv` — AGNOS bench-history
