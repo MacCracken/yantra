@@ -15,20 +15,16 @@ cyrius = "6.0.59"
 # Transport dep chain (Cyrius stdlib, verified against the 6.0.55 snapshot):
 #   ws.cyr     — RFC 6455 WebSocket client (full framing — CDP-ready). The
 #                only transport the M1 Chromium/CDP backend needs.
-#   WebDriver/Appium HTTP — yantra's M2 (WebDriver) backend uses its OWN
-#                minimal HTTP/1.1 client (Content-Length-framed, over net.cyr),
-#                NOT the stdlib `sandhi`. Reason: `sandhi`'s `Connection: close`
-#                read path drains until EOF, which hangs against chromium-family
-#                servers (chromedriver, Chromium DevTools) that don't promptly
-#                close — see sandhi `docs/issues/2026-06-03-http-close-path-
-#                drains-until-eof.md` and yantra `docs/architecture/002`.
-#                `sandhi` (full HTTP/1.1+2: POST/headers/HTTPS) is otherwise the
-#                right client and is the intended transport once that's fixed.
+#   sandhi     — the stdlib HTTP/1.1+2 + WebDriver/Appium RPC layer. M2
+#                (WebDriver: chrome/firefox/webkit/safari) and M3/M4 (Appium:
+#                android/ios) ride `sandhi_wd_*` / `sandhi_ap_*` on it. sandhi
+#                1.4.1 fixed the `Connection: close` close-path drain that had
+#                briefly forced an in-tree client (yantra `docs/architecture/002`,
+#                resolved 0.4.0). HTTPS via the libssl bridge (tls.cyr) when
+#                remote grids land; localhost drivers are plain HTTP.
 #   http.cyr   — the MINIMAL stdlib HTTP client (GET-only). Not used by yantra.
-#   tls.cyr    — HTTPS via the libssl.so.3 `fdlopen` bridge. Not needed for the
-#                localhost CDP/WebDriver transports (plain HTTP); relevant when
-#                the Appium/remote-HTTPS work lands. Native `tls_native.cyr` is
-#                still a v6.0.10 scaffold; the bridge is the working transport.
+#   sakshi     — tracing; yantra wraps each action in a span when
+#                `yantra_trace_enable(1)` is set (M5, off by default).
 #   json.cyr   — tagged value-tree parser/builder (`json_v_parse`,
 #                `json_v_obj_get`, `json_v_arr_*`, `json_v_str/int/bool`) —
 #                full nesting/arrays/typed values; carries WebDriver/Appium
@@ -53,6 +49,7 @@ output = "build/yantra-smoke"
 [lib]
 modules = [
     "src/main.cyr",
+    "src/runtime.cyr",
     "src/protocol/cdp.cyr",
     "src/protocol/webdriver.cyr",
     "src/web.cyr",
@@ -90,6 +87,7 @@ stdlib = [
     "dynlib",   # tls bridge
     "fdlopen",  # tls bridge
     "mmap",     # tls/sandhi
+    "sakshi",   # M5 tracing spans (yantra_trace_enable)
 ]
 
 # sakshi + sigil are now folded into Cyrius stdlib — include via

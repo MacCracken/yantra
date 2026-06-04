@@ -1,0 +1,120 @@
+# src/runtime.cyr — M5 resilience surface: structured errors, session registry
+# (auto-teardown), tracing spans, retry/backoff config, and the shared sleep
+# helper. Sits right after main.cyr in the [lib] order so every backend and the
+# public verbs can use it.
+#
+# No `include` directives (bundle-safe). References the stdlib `sakshi` tracing
+# symbols (resolved by the consumer / link-check chain), gated behind a flag so
+# they're never called unless tracing is on.
+
+# ── structured error surface ────────────
+# Every failing verb sets a code + message; consumers read them after a 0/false
+# return instead of guessing. Cleared at the start of each top-level action.
+var YANTRA_OK           = 0;
+var YANTRA_ERR_NULL     = 1;   # null session / argument
+var YANTRA_ERR_BROWSER  = 2;   # unknown / unsupported browser or platform
+var YANTRA_ERR_CONNECT  = 3;   # could not reach the driver / CDP endpoint
+var YANTRA_ERR_SESSION  = 4;   # session create failed (driver rejected caps)
+var YANTRA_ERR_NAV      = 5;   # navigation failed
+var YANTRA_ERR_NO_ELEMENT = 6; # selector matched nothing (within the wait)
+var YANTRA_ERR_ACTION   = 7;   # click / type / eval failed at the protocol
+
+var _yantra_err_code = 0;
+var _yantra_err_msg  = 0;
+
+fn _yantra_set_err(code, msg): i64 { _yantra_err_code = code; _yantra_err_msg = msg; return 0; }
+fn _yantra_clear_err(): i64 { _yantra_err_code = 0; _yantra_err_msg = 0; return 0; }
+
+# Last error code (YANTRA_OK == none), and its message (cstr).
+fn yantra_last_error(): i64 { return _yantra_err_code; }
+fn yantra_last_error_str(): i64 {
+    if (_yantra_err_msg == 0) { return "ok"; }
+    return _yantra_err_msg;
+}
+
+# ── monotonic sleep (shared) ────────────
+fn _yantra_sleep_ms(ms): i64 {
+    var ts = alloc(16);
+    store64(ts, ms / 1000);
+    store64(ts + 8, (ms % 1000) * 1000000);
+    syscall(35, ts, 0);   # nanosleep(timespec, NULL)
+    return 0;
+}
+
+# ── retry / backoff (resilience) ────────────
+# Bounded retry for transient open/connect failures (driver still starting,
+# connection reset). Linear backoff. Applied on the open path; configurable.
+var _yantra_open_attempts = 4;
+var _yantra_open_backoff_ms = 150;
+fn yantra_set_open_retry(attempts, backoff_ms): i64 {
+    _yantra_open_attempts = attempts;
+    _yantra_open_backoff_ms = backoff_ms;
+    return 0;
+}
+fn _yantra_open_attempts_get(): i64 { return _yantra_open_attempts; }
+fn _yantra_backoff(attempt): i64 { _yantra_sleep_ms(_yantra_open_backoff_ms * attempt); return 0; }
+
+# ── tracing spans (sakshi) ────────────
+# Off by default. When enabled, each action is wrapped in a sakshi span so
+# consumers get a visible timeline. Guarded so sakshi is never called unless on.
+var _yantra_trace = 0;
+fn yantra_trace_enable(on): i64 { _yantra_trace = on; return 0; }
+fn yantra_trace_enabled(): i64 { return _yantra_trace; }
+fn _yantra_span_enter(name): i64 {
+    if (_yantra_trace != 0) { sakshi_span_enter(name, strlen(name)); }
+    return 0;
+}
+fn _yantra_span_exit(): i64 {
+    if (_yantra_trace != 0) { sakshi_span_exit(); }
+    return 0;
+}
+
+# ── session registry (auto-teardown) ────────────
+# yantra has no atexit hook to lean on, so leaked browsers/emulators are closed
+# by tearing down every registered session at exit. Consumers use
+# `yantra_exit(code)` instead of `syscall(60, code)` (or call
+# `yantra_teardown_all()` directly). Fixed slot array; freed slots are reused.
+var _YANTRA_MAX_SESSIONS = 64;
+var _yantra_sessions = 0;
+fn _yantra_reg_init(): i64 {
+    if (_yantra_sessions == 0) {
+        _yantra_sessions = alloc(_YANTRA_MAX_SESSIONS * 8);
+        memset(_yantra_sessions, 0, _YANTRA_MAX_SESSIONS * 8);
+    }
+    return 0;
+}
+fn _yantra_register(s): i64 {
+    _yantra_reg_init();
+    var i = 0;
+    var done = 0;
+    while (i < _YANTRA_MAX_SESSIONS) {
+        if (done == 0) {
+            if (load64(_yantra_sessions + i * 8) == 0) {
+                store64(_yantra_sessions + i * 8, s);
+                done = 1;
+            }
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+fn _yantra_unregister(s): i64 {
+    if (_yantra_sessions == 0) { return 0; }
+    var i = 0;
+    while (i < _YANTRA_MAX_SESSIONS) {
+        if (load64(_yantra_sessions + i * 8) == s) { store64(_yantra_sessions + i * 8, 0); }
+        i = i + 1;
+    }
+    return 0;
+}
+# Count of currently-registered (open) sessions.
+fn yantra_open_session_count(): i64 {
+    if (_yantra_sessions == 0) { return 0; }
+    var i = 0;
+    var n = 0;
+    while (i < _YANTRA_MAX_SESSIONS) {
+        if (load64(_yantra_sessions + i * 8) != 0) { n = n + 1; }
+        i = i + 1;
+    }
+    return n;
+}

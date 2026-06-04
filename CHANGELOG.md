@@ -4,6 +4,42 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-04
+
+> **M5 — auto-teardown + resilience.** Sessions auto-tear-down on exit, failures
+> carry a structured cause, transient connects retry, and actions can emit
+> tracing spans. New `src/runtime.cyr` carries the surface; all backends + verbs
+> are instrumented.
+
+### Added
+- **Auto-teardown.** yantra tracks open sessions in a registry;
+  `yantra_teardown_all()` closes every open browser/emulator, and
+  **`yantra_exit(code)`** (use in place of `syscall(60, code)`) tears down then
+  exits — so leaked sessions get closed pass *or* fail. `yantra_open_session_count()`
+  reports the live count. (No stdlib atexit hook exists, hence the explicit
+  `yantra_exit`.)
+- **Structured error surface.** `yantra_last_error()` (code) +
+  `yantra_last_error_str()` (message). Codes: `YANTRA_ERR_NULL` / `_BROWSER` /
+  `_CONNECT` / `_SESSION` / `_NAV` / `_NO_ELEMENT` / `_ACTION`. Every verb sets
+  them on failure instead of returning a bare 0.
+- **Retry-on-transient.** The open path retries connect failures with linear
+  backoff (driver still starting, connection reset); `yantra_set_open_retry(attempts, backoff_ms)`
+  (default 4 × 150ms).
+- **Tracing spans.** `yantra_trace_enable(1)` wraps each action in a sakshi span
+  for a visible timeline (off by default).
+- `tests/m5.tcyr` — offline resilience suite (**14/14**, CI-safe).
+
+### Changed
+- New `src/runtime.cyr` module (after `main` in the `[lib]` order); the shared
+  auto-wait sleep moved there. `sakshi` added to `[deps] stdlib`.
+- **Pin stays 6.0.59** (not 6.0.60): 6.0.60 has no aarch64-macOS build, and
+  yantra is verified on Linux *and* macOS — 6.0.59 is the cross-platform floor
+  (it carries the macOS net port + sandhi 1.4.1).
+
+### Verified
+- M5 offline **14/14**; web e2e regression **CDP 11/11 + WebDriver 9/9** (Linux);
+  **iOS 4/4** with M5 instrumentation (macOS, live). No happy-path regressions.
+
 ## [0.5.0] - 2026-06-04
 
 > **M4 — iOS Appium/XCUITest backend is live.** Toolchain → Cyrius 6.0.59,

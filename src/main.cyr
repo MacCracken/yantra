@@ -48,5 +48,5 @@ fn yantra_session_flags(s)   { return load64(s + 16); }
 # downstream `.tcyr` consumers can compile against a known surface.
 
 fn yantra_version() {
-    return "0.5.0";
+    return "0.6.0";
 }

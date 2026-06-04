@@ -54,8 +54,12 @@ yantra_tap(session, "@id/login_button");
   + `yantra_tap` / `yantra_type` / `yantra_close`. **Live** (e2e 4/4 vs iOS 26.5 sim).
 - **Android via Appium/UiAutomator2** (M3) — same API; implemented (live run lands with the M6 emulator matrix).
 
-Verified live: CDP 11/11, WebDriver 9/9, iOS 4/4. Runs on Linux x86_64 and
-**macOS arm64**. See [the roadmap](docs/development/roadmap.md).
+**Resilience (M5):** auto-teardown of leaked sessions (`yantra_exit` /
+`yantra_teardown_all`), a structured error surface (`yantra_last_error`),
+retry-on-transient connects, and opt-in tracing spans (`yantra_trace_enable`).
+
+Verified live: CDP 11/11, WebDriver 9/9, iOS 4/4 (+ M5 offline 14/14). Runs on
+Linux x86_64 and **macOS arm64**. See [the roadmap](docs/development/roadmap.md).
 
 ## Build
 

@@ -26,11 +26,14 @@ include "lib/hashmap.cyr"
 include "lib/tls.cyr"
 include "lib/ws.cyr"
 include "lib/json.cyr"
+include "lib/sakshi.cyr"
 include "lib/sandhi.cyr"
 include "src/main.cyr"
+include "src/runtime.cyr"
 include "src/protocol/cdp.cyr"
 include "src/protocol/webdriver.cyr"
 include "src/web.cyr"
+include "src/mobile.cyr"
 
 fn main() {
     alloc_init();

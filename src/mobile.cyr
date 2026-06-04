@@ -65,28 +65,57 @@ fn _mobile_caps(platform, app_id): i64 {
 # (XCUITest); app_id is the package / bundle id. Connects to a local Appium
 # server on the configured port. Returns a session handle or 0 on failure.
 fn yantra_mobile_open(platform, app_id): i64 {
+    _yantra_clear_err();
+    _yantra_span_enter("yantra.mobile_open");
     var caps = _mobile_caps(platform, app_id);
-    if (caps == 0) { return 0; }
+    if (caps == 0) {
+        _yantra_set_err(YANTRA_ERR_BROWSER, "unsupported platform (android/ios)");
+        _yantra_span_exit();
+        return 0;
+    }
     var base = _wd_base_url(_yantra_appium_port);
-    var resp = sandhi_wd_new_session(base, caps);
-    if (sandhi_rpc_ok(resp) == 0) { return 0; }
-    var sid = sandhi_wd_extract_session_id(resp);
-    if (sid == 0) { return 0; }
-    var wd = wd_handle_new(base, sid);
-    return _web_session_new_kind(YANTRA_KIND_MOBILE, YANTRA_TP_WD, wd);
+    # Bounded retry — the Appium server (and first WDA build) can be slow/transient.
+    var attempt = 1;
+    var n = _yantra_open_attempts_get();
+    var sid = 0;
+    var go = 1;
+    while (go == 1) {
+        var resp = sandhi_wd_new_session(base, caps);
+        if (sandhi_rpc_ok(resp) == 1) { sid = sandhi_wd_extract_session_id(resp); }
+        if (sid != 0) { go = 0; }
+        elif (attempt >= n) { go = 0; }
+        else { _yantra_backoff(attempt); attempt = attempt + 1; }
+    }
+    if (sid == 0) {
+        _yantra_set_err(YANTRA_ERR_SESSION, "Appium session create failed");
+        _yantra_span_exit();
+        return 0;
+    }
+    var s = _web_session_new_kind(YANTRA_KIND_MOBILE, YANTRA_TP_WD, wd_handle_new(base, sid));
+    _yantra_register(s);
+    _yantra_span_exit();
+    return s;
 }
 
 # Tap the element matching selector. Mobile selectors:
 #   "@id/<resource-id>"  ·  "~<accessibility-id>"  ·  "text:<text>"  ·  "/<xpath>"
 # With auto-wait, waits for the element to exist first. Returns 1/0.
 fn yantra_tap(session, selector): i64 {
-    if (session == 0) { return 0; }
+    if (session == 0) { _yantra_set_err(YANTRA_ERR_NULL, "null session"); return 0; }
+    _yantra_clear_err();
+    _yantra_span_enter("yantra.tap");
     var be = yantra_session_backend(session);
     var elem = 0;
     if (_web_autowait(session) != 0) { elem = _web_wd_wait_find(be, selector, 1); }
     else                             { elem = wd_find(be, _web_sel_using(selector, 1), _web_sel_value(selector, 1)); }
-    if (elem == 0) { return 0; }
-    return wd_click(be, elem);
+    var r = 0;
+    if (elem == 0) { _yantra_set_err(YANTRA_ERR_NO_ELEMENT, "no element matched selector"); }
+    else {
+        r = wd_click(be, elem);
+        if (r == 0) { _yantra_set_err(YANTRA_ERR_ACTION, "tap failed"); }
+    }
+    _yantra_span_exit();
+    return r;
 }
 
 # No-wait opt-out: tap immediately, no actionability wait.
@@ -100,9 +129,33 @@ fn yantra_tap_now(session, selector): i64 {
 
 # The current UI hierarchy as an XML cstr (Appium page source), or 0.
 fn yantra_mobile_source(session): i64 {
-    if (session == 0) { return 0; }
+    if (session == 0) { _yantra_set_err(YANTRA_ERR_NULL, "null session"); return 0; }
     var be = yantra_session_backend(session);
     var resp = sandhi_ap_source(wd_base(be), wd_session_id(be));
     if (sandhi_rpc_ok(resp) == 0) { return 0; }
     return sandhi_json_get_string(sandhi_rpc_body(resp), "value");
+}
+
+# ── auto-teardown (M5) ────────────
+# Close every open (registered) session — leaked browsers/emulators get shut
+# down even if a test bailed early. yantra has no atexit hook to lean on, so
+# call this explicitly (or use yantra_exit). `yantra_close` zeroes each slot.
+fn yantra_teardown_all(): i64 {
+    if (_yantra_sessions == 0) { return 0; }
+    var i = 0;
+    while (i < _YANTRA_MAX_SESSIONS) {
+        var s = load64(_yantra_sessions + i * 8);
+        if (s != 0) { yantra_close(s); }
+        i = i + 1;
+    }
+    return 0;
+}
+
+# Tear down all open sessions, then exit with `code`. Use in place of
+# `syscall(60, code)` so leaked sessions are always closed, pass or fail:
+#   var rc = run_test(); yantra_exit(rc);
+fn yantra_exit(code): i64 {
+    yantra_teardown_all();
+    syscall(60, code);
+    return code;
 }

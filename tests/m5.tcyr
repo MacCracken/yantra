@@ -1,0 +1,66 @@
+# tests/m5.tcyr — M5 resilience surface, offline (no browser/driver needed).
+# Exercises the structured error codes, null-guards, the session registry +
+# auto-teardown, and the tracing toggle. Runs anywhere (CI-safe).
+
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/base64.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/json.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
+include "src/main.cyr"
+include "src/runtime.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+fn main() {
+    alloc_init();
+    test_group("m5-resilience");
+
+    # Fast offline behavior: no retries/backoff so failed opens return promptly.
+    yantra_set_open_retry(1, 0);
+
+    # Unknown browser → structured BROWSER error.
+    assert(yantra_web_open("netscape") == 0, "open unknown browser fails");
+    assert_eq(yantra_last_error(), YANTRA_ERR_BROWSER, "last_error == BROWSER");
+
+    # Chromium with no CDP server on a dead port → CONNECT error.
+    yantra_web_set_cdp_port(59999);
+    assert(yantra_web_open("chromium") == 0, "open with no CDP server fails");
+    assert_eq(yantra_last_error(), YANTRA_ERR_CONNECT, "last_error == CONNECT");
+
+    # Unknown mobile platform → BROWSER error.
+    assert(yantra_mobile_open("symbian", "com.x") == 0, "open unknown platform fails");
+    assert_eq(yantra_last_error(), YANTRA_ERR_BROWSER, "mobile last_error == BROWSER");
+
+    # Null-session guards set NULL and never crash.
+    assert(yantra_navigate(0, "x") == 0, "navigate(null) fails");
+    assert_eq(yantra_last_error(), YANTRA_ERR_NULL, "last_error == NULL");
+    assert(yantra_click(0, "#x") == 0, "click(null) fails");
+    assert(yantra_tap(0, "@id/x") == 0, "tap(null) fails");
+    assert(yantra_url(0) == 0, "url(null) is 0");
+
+    # Registry: every open failed, so nothing is registered; teardown is safe.
+    assert_eq(yantra_open_session_count(), 0, "no open sessions registered");
+    yantra_teardown_all();
+    assert_eq(yantra_open_session_count(), 0, "teardown_all leaves 0");
+    yantra_close(0);
+
+    # Tracing toggles cleanly; error string is always non-null.
+    yantra_trace_enable(1);
+    yantra_trace_enable(0);
+    assert(yantra_last_error_str() != 0, "last_error_str is non-null");
+
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);

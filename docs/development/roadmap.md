@@ -112,12 +112,20 @@ bootstrap is handled by Appium — yantra doesn't touch WDA directly.
 **Acceptance** (met): `.tcyr` opens an iOS simulator session, taps, asserts,
 closes. Benchmark vs Appium-Python — TODO (M6).
 
-### M5 — Auto-teardown + resilience (v0.6.0)
+### M5 — Auto-teardown + resilience (shipped v0.6.0, 2026-06-04)
 
-- Session teardown registered as a `syscall(60)` atexit hook — leaked browser / emulator processes get closed when the test exits, pass or fail
-- Retry-on-transient semantics for flaky network conditions (connection reset, 502/503 from WebDriver endpoints)
-- Structured error surface — every yantra failure carries the protocol-level cause, not just "it didn't work"
-- Sakshi tracing spans around each action so consumers get a visible timeline
+✅ **Done.** Surface in `src/runtime.cyr`, all backends/verbs instrumented.
+Offline suite `tests/m5.tcyr` 14/14; verified across web (CDP/WebDriver) + iOS.
+
+- **Auto-teardown**: session registry + `yantra_teardown_all()` and
+  `yantra_exit(code)` (the stdlib has no atexit hook, so consumers call
+  `yantra_exit` in place of `syscall(60, code)` — leaked browsers/emulators
+  close pass or fail). `yantra_open_session_count()` reports the live count.
+- **Retry-on-transient**: bounded linear-backoff retry on the open/connect path
+  (`yantra_set_open_retry(attempts, backoff_ms)`, default 4 × 150ms).
+- **Structured error surface**: `yantra_last_error()` + `yantra_last_error_str()`
+  with codes `NULL`/`BROWSER`/`CONNECT`/`SESSION`/`NAV`/`NO_ELEMENT`/`ACTION`.
+- **Tracing**: `yantra_trace_enable(1)` wraps each action in a sakshi span.
 
 ### M6 — CI matrix (v0.7.0)
 

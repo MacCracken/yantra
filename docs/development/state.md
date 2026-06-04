@@ -6,6 +6,14 @@
 
 ## Version
 
+**0.6.0** — 2026-06-04. **M5 — auto-teardown + resilience.** Session registry +
+`yantra_teardown_all()` / `yantra_exit(code)` (leaked browsers/emulators closed
+on exit); structured errors (`yantra_last_error()` / `_str()` + codes);
+retry-on-transient open (`yantra_set_open_retry`); sakshi tracing spans
+(`yantra_trace_enable`). New `src/runtime.cyr`. Verified: M5 offline 14/14, web
+11/11 + 9/9, iOS 4/4. Pin held at **6.0.59** (6.0.60 is Linux-only; 6.0.59 is the
+cross-platform floor).
+
 **0.5.0** — 2026-06-04. **M4 — iOS Appium/XCUITest backend is LIVE.**
 `yantra_mobile_open("ios", …)` drives a real iOS 26.5 simulator over Appium;
 `tests/e2e/ios-appium-smoke.tcyr` passes **4/4** (open → source → tap native cell
@@ -108,6 +116,9 @@ the path.
 
 - `src/main.cyr` — Session / Selector / Action primitives (`yantra_version`,
   session field accessors). **Live.**
+- `src/runtime.cyr` — **M5 resilience surface**: structured errors
+  (`yantra_last_error`/`_str`), session registry + auto-teardown, retry/backoff
+  config, tracing-span helpers, shared sleep. **Live (M5).**
 - `src/protocol/cdp.cyr` — Chrome DevTools Protocol over `ws.cyr`: discovery
   GET, command build/escape, response matching, eval/navigate/connect/close.
   **Live (M1).**
@@ -131,6 +142,8 @@ these modules carry no `include`s (stdlib resolved by the consumer).
 - `tests/yantra.bcyr` — micro-benchmark harness (`cyrius bench`), real now:
   measures the session-primitive decode paths (~5 ns each).
 - `tests/yantra.fcyr` — fuzz harness (`cyrius fuzz`), stub.
+- `tests/m5.tcyr` — M5 resilience suite (**14/14**): structured errors,
+  null-guards, session registry + teardown, tracing toggle. Offline / CI-safe.
 - `tests/e2e/chromium-smoke.tcyr` — M1 acceptance E2E. **Passing (11/11)**
   against live headless Chromium: open → navigate → url → type (value
   round-trips) → click (checkbox toggles) → click_now → close, all over CDP
@@ -207,7 +220,10 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
 4. **M4 — iOS Appium backend** (shipped v0.5.0). ✅ **LIVE** — `yantra_mobile_open("ios",…)`
    drives a real iOS 26.5 simulator over Appium/XCUITest; e2e 4/4
    (open → source → tap → close). Verified on `ecb` (arm64 macOS), cyrius 6.0.59.
-5. **M5 onward** — auto-teardown, CI matrix (incl. Android emulator + iOS sim),
-   docs, security hardening, v1.0.
+5. **M5 — auto-teardown + resilience** (shipped v0.6.0). ✅ **DONE** — registry +
+   `yantra_exit`/`teardown_all`, structured `yantra_last_error`, retry-on-transient,
+   tracing spans (`src/runtime.cyr`). Offline 14/14; verified across web + iOS.
+6. **M6 onward** — CI device matrix (Android emulator + iOS sim), docs/guides,
+   security hardening, v1.0.
 
 Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.
