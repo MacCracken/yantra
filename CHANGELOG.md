@@ -16,7 +16,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - **Firefox** via geckodriver (`tests/e2e/firefox-smoke.tcyr`) — headless
     through yantra's `-headless` cap, no display needed.
   - **WebKit** via WebKitWebDriver / WebKitGTK (`tests/e2e/webkit-smoke.tcyr`),
-    run under Xvfb (`webkit2gtk-driver` has no headless cap).
+    run under Xvfb (`webkit2gtk-driver` has no headless cap). **Non-blocking**
+    (`continue-on-error`): WebKitGTK advertises `browserName "WebKitGTK"`, which
+    the W3C matcher rejects against yantra's Playwright-style `"webkit"` cap, and
+    headless WebKitGTK in hosted CI is brittle. The WebDriver wire is already
+    gated by chromedriver + geckodriver, and WebKit's authoritative coverage is
+    the iOS path — see `docs/architecture/004-webkitgtk-ci-is-non-blocking.md`.
   - **Android** via `reactivecircus/android-emulator-runner` (api-34 /
     google_apis / x86_64, KVM) + Appium/UiAutomator2.
   - **iOS** via `macos-latest` + a runner-matched simulator (the job picks the
@@ -30,10 +35,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   build artifact.
 
 ### Changed
-- **`setup-cyrius` action is now OS/arch-aware** — resolves the release triple
-  from `uname` (x86_64-linux on ubuntu, aarch64-macos on the macOS runner) and
-  keys the toolchain cache on it, so the same action serves the web/Android
-  (Linux) and iOS (macOS) jobs.
+- **`setup-cyrius` now installs via the canonical `scripts/install.sh`** so the
+  same action serves the Linux (web/Android) and macOS (iOS) jobs. That
+  installer is itself OS/arch-aware — it detects the platform, downloads the
+  matching `<arch>-<os>` release tarball, codesigns on macOS, and lays out
+  `~/.cyrius` (versions/<v>/{bin,lib} + symlinks + current). The cache key is
+  keyed on `runner.os`/`runner.arch` to keep the Linux and macOS caches split.
+- The Android e2e body moved to **`scripts/ci/android-e2e.sh`**, invoked as a
+  single line. `reactivecircus/android-emulator-runner` runs its `script` input
+  line-by-line as separate `sh -c`, which killed the backgrounded `appium &` and
+  broke the multi-line readiness loop; running one helper in one shell fixes both.
 
 ## [0.6.1] - 2026-06-04
 

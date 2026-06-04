@@ -175,7 +175,8 @@ these modules carry no `include`s (stdlib resolved by the consumer).
 - `tests/e2e/firefox-smoke.tcyr` / `webkit-smoke.tcyr` — M6 web e2e for the
   remaining WebDriver targets. Same flow as the chromedriver smoke via
   `yantra_web_open("firefox")` (geckodriver, headless cap) / `("webkit")`
-  (WebKitWebDriver under Xvfb). CI jobs `E2E (Firefox …)` / `E2E (WebKit …)`.
+  (WebKitWebDriver under Xvfb). CI jobs `E2E (Firefox …)` (gates) /
+  `E2E (WebKit …)` (non-blocking — WebKitGTK driver mismatch, architecture 004).
 - `tests/e2e/android-appium-smoke.tcyr` — M3 acceptance E2E. **Passing (4/4)**
   against a live android-34 / google_apis x86_64 emulator (Appium 3.x +
   uiautomator2): open `com.android.settings` → page source (UiAutomator2 XML) →

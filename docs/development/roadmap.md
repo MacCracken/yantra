@@ -145,7 +145,9 @@ push/PR (`.github/workflows/ci.yml`):
 - **Firefox** via geckodriver (`tests/e2e/firefox-smoke.tcyr`) — headless via
   yantra's `-headless` cap.
 - **WebKit** via WebKitWebDriver / WebKitGTK (`tests/e2e/webkit-smoke.tcyr`) —
-  under Xvfb (no headless cap).
+  under Xvfb (no headless cap). **Non-blocking** — WebKitGTK's driver-side
+  browserName mismatch + hosted-CI brittleness; WebKit's authoritative coverage
+  is the iOS path (architecture [004](../architecture/004-webkitgtk-ci-is-non-blocking.md)).
 - **Android** via `reactivecircus/android-emulator-runner` (api-34 / google_apis
   / x86_64 / KVM) + Appium/UiAutomator2.
 - **iOS** via `macos-latest` + a runner-matched simulator + Appium/XCUITest.

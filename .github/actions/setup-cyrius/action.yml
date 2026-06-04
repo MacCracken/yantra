@@ -22,48 +22,29 @@ runs:
         echo "version=$V" >> "$GITHUB_OUTPUT"
         echo "Cyrius version: $V"
 
-    - name: Resolve platform triple
-      id: triple
-      shell: bash
-      run: |
-        # Map the runner OS/arch to a Cyrius release triple. Both Linux
-        # (x86_64) and macOS (arm64 GitHub runners) are published, so the same
-        # action serves the web (ubuntu) and iOS (macos-latest) jobs.
-        OS="$(uname -s)"; ARCH="$(uname -m)"
-        case "$ARCH" in aarch64|arm64) A=aarch64 ;; x86_64|amd64) A=x86_64 ;; *) echo "unsupported arch $ARCH"; exit 1 ;; esac
-        case "$OS" in Linux) O=linux ;; Darwin) O=macos ;; *) echo "unsupported OS $OS"; exit 1 ;; esac
-        echo "triple=$A-$O" >> "$GITHUB_OUTPUT"
-        echo "Platform triple: $A-$O"
-
     - name: Cache toolchain
       id: cache
       uses: actions/cache@v4
       with:
         path: ~/.cyrius
-        # v3: installed via the toolchain's own install.sh (canonical layout:
-        # versions/<v>/{bin,lib} + ~/.cyrius/{bin,lib} symlinks + current).
-        # Keyed on the platform triple so the macOS and Linux caches stay split.
-        key: cyrius-${{ steps.triple.outputs.triple }}-${{ steps.ver.outputs.version }}-v3
+        # Keyed on runner OS+arch so the macOS and Linux caches stay split.
+        # The canonical install.sh lays out versions/<v>/{bin,lib} +
+        # ~/.cyrius/{bin,lib} symlinks + current.
+        key: cyrius-${{ runner.os }}-${{ runner.arch }}-${{ steps.ver.outputs.version }}-v4
 
     - name: Install toolchain
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         V="${{ steps.ver.outputs.version }}"
-        T="${{ steps.triple.outputs.triple }}"
-        echo "Installing Cyrius $V ($T) via the bundled install.sh"
-        TARBALL="$(pwd)/cyrius-$V-$T.tar.gz"
-        curl -sL -o "$TARBALL" \
-          "https://github.com/MacCracken/cyrius/releases/download/$V/cyrius-$V-$T.tar.gz"
-        # Run the official installer from a temp dir (so it doesn't poke the
-        # repo checkout). CYRIUS_INSTALL_TARBALL installs from the local file;
-        # the installer lays out ~/.cyrius/versions/$V/{bin,lib}, symlinks
-        # ~/.cyrius/{bin,lib} → it, and writes ~/.cyrius/current — exactly what
-        # `cyrius lib sync` and tool resolution (~/.cyrius/bin/cyrlint) need.
-        WORK="$(mktemp -d)"
-        tar xzf "$TARBALL" -C "$WORK"
-        ( cd "$WORK" && CYRIUS_VERSION="$V" CYRIUS_INSTALL_TARBALL="$TARBALL" \
-            sh "cyrius-$V-$T/install.sh" )
+        # The canonical installer is OS/arch-aware: it detects the platform via
+        # uname, downloads the matching <arch>-<os> release tarball, codesigns on
+        # macOS, and lays out ~/.cyrius (versions/<v>/{bin,lib} + symlinks +
+        # current). The same one-liner the README documents — so the same action
+        # serves the Linux (web/Android) and macOS (iOS) jobs unchanged.
+        echo "Installing Cyrius $V via the canonical scripts/install.sh"
+        curl -sSf "https://raw.githubusercontent.com/MacCracken/cyrius/$V/scripts/install.sh" \
+          | CYRIUS_VERSION="$V" sh
 
     - name: Export PATH and CYRIUS_HOME
       shell: bash
