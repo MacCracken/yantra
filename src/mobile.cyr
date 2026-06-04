@@ -22,6 +22,17 @@ var _yantra_appium_port = 4723;
 fn yantra_mobile_set_port(p): i64 { _yantra_appium_port = p; return 0; }
 fn yantra_mobile_port(): i64 { return _yantra_appium_port; }
 
+# Optional iOS simulator target (appium:deviceName / appium:platformVersion).
+# XCUITest needs a concrete simulator; set these before opening an "ios" session
+# when the default pick isn't right. 0 = omit (let Appium choose).
+var _yantra_ios_device = 0;
+var _yantra_ios_version = 0;
+fn yantra_mobile_set_ios_device(name, version): i64 {
+    _yantra_ios_device = name;
+    _yantra_ios_version = version;
+    return 0;
+}
+
 # Build the W3C capabilities JSON for an Appium session. Returns a cstr or 0
 # for an unsupported platform. app_id is the Android package or iOS bundle id.
 fn _mobile_caps(platform, app_id): i64 {
@@ -35,8 +46,13 @@ fn _mobile_caps(platform, app_id): i64 {
     var always = sandhi_json_obj_new();
     sandhi_json_add_string(always, "platformName", pn);
     sandhi_json_add_string(always, "appium:automationName", an);
-    if (android == 1) { sandhi_json_add_string(always, "appium:appPackage", app_id); }
-    else              { sandhi_json_add_string(always, "appium:bundleId", app_id); }
+    if (android == 1) {
+        sandhi_json_add_string(always, "appium:appPackage", app_id);
+    } else {
+        sandhi_json_add_string(always, "appium:bundleId", app_id);
+        if (_yantra_ios_device != 0)  { sandhi_json_add_string(always, "appium:deviceName", _yantra_ios_device); }
+        if (_yantra_ios_version != 0) { sandhi_json_add_string(always, "appium:platformVersion", _yantra_ios_version); }
+    }
 
     var caps = sandhi_json_obj_new();
     sandhi_json_add_object(caps, "alwaysMatch", always);

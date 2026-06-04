@@ -248,6 +248,12 @@ fn _web_caps_firefox(): i64 {
 fn _web_caps_webkit(): i64 {
     return "{\"capabilities\":{\"alwaysMatch\":{\"browserName\":\"webkit\"}}}";
 }
+# Apple's safaridriver (built into macOS) uses browserName "safari" — distinct
+# from Playwright's "webkit" (webkitwebdriver/MiniBrowser). Run the driver with
+# `safaridriver -p <port>` (after a one-time `sudo safaridriver --enable`).
+fn _web_caps_safari(): i64 {
+    return "{\"capabilities\":{\"alwaysMatch\":{\"browserName\":\"safari\"}}}";
+}
 
 # ── session construction ────────────
 
@@ -292,6 +298,7 @@ fn yantra_web_open(browser): i64 {
     if (streq(browser, "chrome") == 1)  { return _web_wd_open(_web_wd_port_or(9515), _web_caps_chrome()); }
     if (streq(browser, "firefox") == 1) { return _web_wd_open(_web_wd_port_or(4444), _web_caps_firefox()); }
     if (streq(browser, "webkit") == 1)  { return _web_wd_open(_web_wd_port_or(4444), _web_caps_webkit()); }
+    if (streq(browser, "safari") == 1)  { return _web_wd_open(_web_wd_port_or(4445), _web_caps_safari()); }
     return 0;
 }
 

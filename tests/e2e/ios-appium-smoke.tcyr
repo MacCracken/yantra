@@ -1,0 +1,58 @@
+# tests/e2e/ios-appium-smoke.tcyr — yantra's M4 acceptance against a live iOS
+# Simulator + Appium server (XCUITest). Mobile analog of the web e2e: it drives
+# the built-in Settings app (com.apple.Preferences) through the Appium backend.
+#
+# STATUS: live on macOS only (needs Xcode + an iOS Simulator runtime + a running
+# Appium server with the xcuitest driver). Not in the Linux CI; it's the M6
+# device-matrix's job. Compile+link verified on Linux; run on the `ecb` Mac.
+#
+# Run (on macOS, with a booted simulator + Appium up on :4723):
+#   appium &
+#   cyrius test tests/e2e/ios-appium-smoke.tcyr
+#
+# If Appium can't auto-pick the simulator, set the target first in code:
+#   yantra_mobile_set_ios_device("iPhone 16", "18.2")
+
+# Full chain: net → tls bridge → sandhi (WebDriver/Appium RPC) + ws + json.
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/base64.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/json.cyr"
+include "lib/sandhi.cyr"
+include "src/main.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+fn main() {
+    alloc_init();
+    test_group("ios-appium-e2e");
+
+    # Target a concrete simulator (XCUITest needs one). Adjust to a device +
+    # iOS version your `xcrun simctl list devices` shows.
+    yantra_mobile_set_ios_device("iPhone 17", "26.5");
+
+    # Drive the Settings app — present on every iOS image.
+    var s = yantra_mobile_open("ios", "com.apple.Preferences");
+    assert(s != 0, "open ios Settings session (XCUITest)");
+    if (s == 0) { return assert_summary(); }
+
+    # The XCUITest native UI hierarchy (XML) proves the session is driving the
+    # app. Robust across iOS versions (no label-specific assertions yet).
+    var src = yantra_mobile_source(s);
+    assert(src != 0, "page source (XCUITest) is non-null");
+    assert(strlen(src) > 100, "source is a substantial XCUITest hierarchy");
+
+    yantra_close(s);
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);
