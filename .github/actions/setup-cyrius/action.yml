@@ -27,7 +27,9 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.cyrius
-        key: cyrius-${{ runner.os }}-${{ steps.ver.outputs.version }}
+        # v2: install into the versioned snapshot layout (versions/<v>/lib)
+        # that `cyrius lib sync` and the compiler resolve stdlib from.
+        key: cyrius-${{ runner.os }}-${{ steps.ver.outputs.version }}-v2
 
     - name: Install toolchain
       if: steps.cache.outputs.cache-hit != 'true'
@@ -38,13 +40,23 @@ runs:
         curl -sLO "https://github.com/MacCracken/cyrius/releases/download/$V/cyrius-$V-x86_64-linux.tar.gz"
         tar xzf "cyrius-$V-x86_64-linux.tar.gz"
         D="cyrius-$V-x86_64-linux"
-        mkdir -p "$HOME/.cyrius/bin" "$HOME/.cyrius/lib"
-        cp "$D/bin/"* "$HOME/.cyrius/bin/" 2>/dev/null || true
-        cp -r "$D/lib/"* "$HOME/.cyrius/lib/" 2>/dev/null || true
-        chmod +x "$HOME/.cyrius/bin/"* 2>/dev/null || true
+        # Lay out the canonical versioned snapshot. `cyrius lib sync` reads
+        # ~/.cyrius/versions/<v>/lib, and the compiler resolves stdlib there
+        # — the flat ~/.cyrius/{bin,lib} copy was not enough.
+        VER="$HOME/.cyrius/versions/$V"
+        mkdir -p "$VER"
+        cp -r "$D/bin" "$VER/bin"
+        cp -r "$D/lib" "$VER/lib"
+        chmod +x "$VER/bin/"* 2>/dev/null || true
+        # Match the installer's layout: per-version VERSION file + a top-level
+        # `current` file holding the active version string (it is a plain file,
+        # not a symlink).
+        echo "$V" > "$VER/VERSION"
+        echo "$V" > "$HOME/.cyrius/current"
 
     - name: Export PATH and CYRIUS_HOME
       shell: bash
       run: |
-        echo "$HOME/.cyrius/bin" >> "$GITHUB_PATH"
+        V="${{ steps.ver.outputs.version }}"
+        echo "$HOME/.cyrius/versions/$V/bin" >> "$GITHUB_PATH"
         echo "CYRIUS_HOME=$HOME/.cyrius" >> "$GITHUB_ENV"
