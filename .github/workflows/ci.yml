@@ -260,8 +260,14 @@ jobs:
           DEV="$(xcrun simctl list devices available | grep -Eo 'iPhone [0-9]+' | sort -t' ' -k2 -n | tail -1)"
           VER="$(xcrun simctl list runtimes available | grep -Eo 'iOS [0-9]+\.[0-9]+' | tail -1 | awk '{print $2}')"
           echo "Using simulator: $DEV (iOS $VER)"
+          # Boot the sim and WAIT for it to be fully booted — the XCUITest
+          # session-create builds/launches WebDriverAgent on it, which needs a
+          # ready device (and the first build can take a minute+).
           xcrun simctl boot "$DEV" || true
-          appium --port 4723 --log-level error >/tmp/appium.log 2>&1 &
+          xcrun simctl bootstatus "$DEV" -b || true
+          # log-level debug so a WebDriverAgent / xcodebuild failure shows up in
+          # the dumped log on failure (error-level hides the real cause).
+          appium --port 4723 --log-level debug >/tmp/appium.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:4723/status >/dev/null 2>&1 && break
             sleep 1
@@ -269,7 +275,22 @@ jobs:
           sed -E "s/yantra_mobile_set_ios_device\\(\"[^\"]*\", \"[^\"]*\"\\)/yantra_mobile_set_ios_device(\"$DEV\", \"$VER\")/" \
             tests/e2e/ios-appium-smoke.tcyr > /tmp/ios-ci.tcyr
           # Run from repo root so the relative include paths still resolve.
+          # Capture the exit code so we can surface Appium's log on failure —
+          # yantra's session-create error is intentionally generic, the real
+          # reason (WDA build, sim mismatch, timeout) lives in the Appium log.
+          set +e
           cyrius test /tmp/ios-ci.tcyr
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "::group::Appium log (tail -300)"
+            tail -300 /tmp/appium.log || true
+            echo "::endgroup::"
+            echo "::group::Simulator state"
+            xcrun simctl list devices booted || true
+            echo "::endgroup::"
+          fi
+          exit "$rc"
 
   benchmarks:
     name: Benchmarks (history CSV)

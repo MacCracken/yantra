@@ -24,8 +24,11 @@ binary through `/usr/bin/qemu-aarch64` (absent on a native Apple-Silicon host �
 execve ENOENT → `exit 127`) and, unlike `cyrius build`, never ad-hoc codesigned
 the tmp binary (AMFI would SIGKILL it once qemu is bypassed). **Fixed in 6.0.66**
 (qemu gated to non-macOS; `_macho_codesign` hoisted into every run path) — cyrius
-issue `2026-06-05-macos-cyrius-test-run-binary-qemu-aarch64-unsigned`; awaiting CI
-confirmation. Separately, a real yantra correctness
+issue `2026-06-05-macos-cyrius-test-run-binary-qemu-aarch64-unsigned`; **confirmed
+on the runner** (the iOS test binary now runs natively). The iOS e2e itself now
+fails at `yantra_mobile_open("ios")` session-create on the hosted runner (passes
+4/4 on `ecb`) — a real XCUITest/WebDriverAgent issue under diagnosis; CI now dumps
+the Appium debug log on failure. Separately, a real yantra correctness
 fix landed: `_yantra_sleep_ms` called raw `syscall(35)` (x86 nanosleep; on
 aarch64-macho `35` is `unlinkat`), so the auto-wait never slept on macOS — now
 uses `poll` (`syscall(7)`). `setup-cyrius` keeps an idempotent "Ensure toolchain
