@@ -247,10 +247,18 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Appium + XCUITest
+      - name: Install Appium + XCUITest + prebuild WDA
         run: |
           npm install -g appium
           appium driver install xcuitest
+          # Prebuild/download WebDriverAgent so session-create never runs a cold
+          # `xcodebuild` (slow ~4min AND flaky on hosted runners — it intermittently
+          # stalls). The session then uses appium:usePreinstalledWDA + the prebuilt
+          # .app instead. Requires iOS 17+/WDA v13+ (we target iOS 18.x). See the
+          # appium-xcuitest run-prebuilt-wda guide.
+          mkdir -p "$HOME/wda"
+          appium driver run xcuitest download-wda -- --outdir="$HOME/wda" --kind=sim --platform=ios || true
+          ls -la "$HOME/wda" || true
 
       - name: Boot a simulator + run E2E
         # The committed ios-appium-smoke.tcyr targets the maintainer's local sim
@@ -287,9 +295,11 @@ jobs:
             exit 1
           fi
           echo "Using simulator: $DEV (iOS $VER) UDID=$UDID"
-          # Boot the exact UDID and WAIT for it to be fully booted — the XCUITest
-          # session-create builds/launches WebDriverAgent on it, which needs a
-          # ready device (and the first build can take a minute+).
+          # Locate the prebuilt WDA .app downloaded in the install step.
+          WDA_APP="$(find "$HOME/wda" -maxdepth 2 -name 'WebDriverAgentRunner-Runner.app' -print -quit 2>/dev/null)"
+          [ -z "$WDA_APP" ] && WDA_APP="$(find "$HOME/wda" -maxdepth 2 -name '*.app' -print -quit 2>/dev/null)"
+          echo "Prebuilt WDA: ${WDA_APP:-<none — session will build WDA via xcodebuild>}"
+          # Boot the exact UDID and WAIT for it to be fully booted.
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b || true
           # log-level debug so a WebDriverAgent / xcodebuild failure shows up in
@@ -306,11 +316,13 @@ jobs:
           # hangs in waitForBoot. Anchor on the real call (leading whitespace,
           # not a '#  ...' comment) so the doc-comment example isn't turned into
           # top-level code.
-          awk -v dev="$DEV" -v ver="$VER" -v udid="$UDID" '
+          awk -v dev="$DEV" -v ver="$VER" -v udid="$UDID" -v wda="$WDA_APP" '
             /^[[:space:]]*yantra_mobile_set_ios_device\(/ {
               print "    yantra_mobile_set_ios_device(\"" dev "\", \"" ver "\");"
               if (udid != "") print "    yantra_mobile_set_ios_udid(\"" udid "\");"
               print "    yantra_mobile_set_ios_headless(1);"
+              print "    yantra_mobile_set_no_reset(1);"
+              if (wda != "") print "    yantra_mobile_set_ios_prebuilt_wda(\"" wda "\");"
               next
             }
             { print }
@@ -325,7 +337,9 @@ jobs:
             # builds (now incl. appium:udid). curl-creates → yantra transport;
             # curl-also-fails → Appium/WDA/runner env (where this currently sits).
             echo "::group::Direct curl POST /session probe (yantra transport vs Appium/WDA)"
-            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'","appium:udid":"'"$UDID"'","appium:isHeadless":true,"appium:wdaLaunchTimeout":360000}}}'
+            PREBUILT=""
+            [ -n "$WDA_APP" ] && PREBUILT=',"appium:usePreinstalledWDA":true,"appium:prebuiltWDAPath":"'"$WDA_APP"'"'
+            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'","appium:udid":"'"$UDID"'","appium:isHeadless":true,"appium:noReset":true,"appium:wdaLaunchTimeout":360000'"$PREBUILT"'}}}'
             echo "caps: $CAPS"
             curl -sS -m 400 -w '\nHTTP %{http_code}\n' -X POST http://127.0.0.1:4723/session \
               -H 'Content-Type: application/json' -d "$CAPS" \

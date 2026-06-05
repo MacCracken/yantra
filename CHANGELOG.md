@@ -47,6 +47,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   launch `Simulator.app`, and then hang in `waitForBoot` ("failed to finish
   booting after 120s"). Headless skips that visible-UI restart. Optional; omitted
   by default (a developer Mac with a display can keep the UI).
+- **`yantra_mobile_set_no_reset(on)`** (`appium:noReset`, android + iOS). Skips
+  Appium's app-reset on session start, which can silently hang for minutes on
+  hosted CI even with nothing to reset, and is pointless for read-only/system-app
+  smokes. Optional; omitted by default.
+- **`yantra_mobile_set_ios_prebuilt_wda(app_path)`** (`appium:usePreinstalledWDA`
+  + `appium:prebuiltWDAPath`). Use a WebDriverAgent prebuilt ahead of time
+  (`appium driver run xcuitest download-wda -- --outdir=DIR --kind=sim
+  --platform=ios`) instead of `xcodebuild`-building it at session time — the cold
+  build is ~4 min and intermittently *stalls* on hosted runners. Requires
+  iOS 17+/WDA v13+. Optional; omitted by default.
 - **`scripts/parity-appium.py`** — the Appium-Python side of the **mobile**
   parity benchmark (open → page source → find → tap), mirroring
   `scripts/parity-playwright.mjs` for web. Reference harness; not run in CI.

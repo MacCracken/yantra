@@ -69,6 +69,29 @@ fn yantra_mobile_set_ios_headless(on): i64 {
     return 0;
 }
 
+# Skip Appium's app-reset on session start (appium:noReset). The reset
+# (terminate + scrub the target app) can silently hang for minutes on hosted CI
+# even when there is nothing to reset, and is pointless for read-only / system-app
+# smokes. 0 = omit (Appium's default reset). Applies to android + ios.
+var _yantra_no_reset = 0;
+fn yantra_mobile_set_no_reset(on): i64 {
+    _yantra_no_reset = on;
+    return 0;
+}
+
+# Use a PREBUILT WebDriverAgent instead of building it via xcodebuild at session
+# time (appium:usePreinstalledWDA + appium:prebuiltWDAPath). The cold xcodebuild
+# WDA build is slow (~4 min) and flaky on hosted CI; prebuilding it once
+# (`appium driver run xcuitest download-wda -- --outdir=DIR --kind=sim
+# --platform=ios`) and pointing here at DIR/WebDriverAgentRunner-Runner.app makes
+# session-create fast + deterministic. Requires iOS 17+/WDA v13+. 0 = omit (Appium
+# builds WDA itself).
+var _yantra_ios_prebuilt_wda = 0;
+fn yantra_mobile_set_ios_prebuilt_wda(app_path): i64 {
+    _yantra_ios_prebuilt_wda = app_path;
+    return 0;
+}
+
 # Build the W3C capabilities JSON for an Appium session. Returns a cstr or 0
 # for an unsupported platform. app_id is the Android package or iOS bundle id.
 fn _mobile_caps(platform, app_id): i64 {
@@ -82,6 +105,7 @@ fn _mobile_caps(platform, app_id): i64 {
     var always = sandhi_json_obj_new();
     sandhi_json_add_string(always, "platformName", pn);
     sandhi_json_add_string(always, "appium:automationName", an);
+    if (_yantra_no_reset != 0) { sandhi_json_add_raw(always, "appium:noReset", "true"); }
     if (android == 1) {
         sandhi_json_add_string(always, "appium:appPackage", app_id);
         # Skip the io.appium.settings helper install/launch — it fails to
@@ -99,6 +123,10 @@ fn _mobile_caps(platform, app_id): i64 {
             sandhi_json_add_int(always, "appium:wdaLaunchTimeout", _yantra_ios_wda_timeout);
         }
         if (_yantra_ios_headless != 0) { sandhi_json_add_raw(always, "appium:isHeadless", "true"); }
+        if (_yantra_ios_prebuilt_wda != 0) {
+            sandhi_json_add_raw(always, "appium:usePreinstalledWDA", "true");
+            sandhi_json_add_string(always, "appium:prebuiltWDAPath", _yantra_ios_prebuilt_wda);
+        }
     }
 
     var caps = sandhi_json_obj_new();
