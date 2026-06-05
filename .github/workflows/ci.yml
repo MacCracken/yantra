@@ -253,12 +253,23 @@ jobs:
           appium driver install xcuitest
           # Prebuild/download WebDriverAgent so session-create never runs a cold
           # `xcodebuild` (slow ~4min AND flaky on hosted runners — it intermittently
-          # stalls). The session then uses appium:usePreinstalledWDA + the prebuilt
-          # .app instead. Requires iOS 17+/WDA v13+ (we target iOS 18.x). See the
-          # appium-xcuitest run-prebuilt-wda guide.
+          # stalls; and yantra's HTTP client struggles with the long silent wait).
+          # The session then uses appium:usePreinstalledWDA + the prebuilt .app.
+          # Requires iOS 17+/WDA v13+ (we target iOS 18.x). See the
+          # appium-xcuitest run-prebuilt-wda guide. Verbose + non-swallowed so a
+          # failure is visible (the run step still falls back to building if empty).
           mkdir -p "$HOME/wda"
-          appium driver run xcuitest download-wda -- --outdir="$HOME/wda" --kind=sim --platform=ios || true
-          ls -la "$HOME/wda" || true
+          echo "::group::download-wda --help"
+          appium driver run xcuitest download-wda -- --help 2>&1 || echo "(--help failed: $?)"
+          echo "::endgroup::"
+          echo "::group::download-wda run"
+          appium driver run xcuitest download-wda -- --outdir="$HOME/wda" --kind=sim --platform=ios 2>&1 \
+            || echo "download-wda exited non-zero: $?"
+          echo "--- recursive listing of $HOME/wda ---"
+          ls -laR "$HOME/wda" 2>&1 || true
+          echo "--- any .app under it ---"
+          find "$HOME/wda" -name '*.app' 2>/dev/null || true
+          echo "::endgroup::"
 
       - name: Boot a simulator + run E2E
         # The committed ios-appium-smoke.tcyr targets the maintainer's local sim
@@ -296,8 +307,8 @@ jobs:
           fi
           echo "Using simulator: $DEV (iOS $VER) UDID=$UDID"
           # Locate the prebuilt WDA .app downloaded in the install step.
-          WDA_APP="$(find "$HOME/wda" -maxdepth 2 -name 'WebDriverAgentRunner-Runner.app' -print -quit 2>/dev/null)"
-          [ -z "$WDA_APP" ] && WDA_APP="$(find "$HOME/wda" -maxdepth 2 -name '*.app' -print -quit 2>/dev/null)"
+          WDA_APP="$(find "$HOME/wda" -name 'WebDriverAgentRunner-Runner.app' -print -quit 2>/dev/null)"
+          [ -z "$WDA_APP" ] && WDA_APP="$(find "$HOME/wda" -name '*.app' -print -quit 2>/dev/null)"
           echo "Prebuilt WDA: ${WDA_APP:-<none — session will build WDA via xcodebuild>}"
           # Boot the exact UDID and WAIT for it to be fully booted.
           xcrun simctl boot "$UDID" || true
