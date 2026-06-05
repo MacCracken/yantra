@@ -256,18 +256,14 @@ jobs:
           # stalls; and yantra's HTTP client struggles with the long silent wait).
           # The session then uses appium:usePreinstalledWDA + the prebuilt .app.
           # Requires iOS 17+/WDA v13+ (we target iOS 18.x). See the
-          # appium-xcuitest run-prebuilt-wda guide. Verbose + non-swallowed so a
-          # failure is visible (the run step still falls back to building if empty).
-          mkdir -p "$HOME/wda"
-          echo "::group::download-wda --help"
-          appium driver run xcuitest download-wda -- --help 2>&1 || echo "(--help failed: $?)"
-          echo "::endgroup::"
-          echo "::group::download-wda run"
-          appium driver run xcuitest download-wda -- --outdir="$HOME/wda" --kind=sim --platform=ios 2>&1 \
+          # appium-xcuitest run-prebuilt-wda guide. NOTE: download-wda CREATES
+          # --outdir and errors if it already exists ("<dir> already exists"), so
+          # do NOT pre-create it. iOS/sim flags per `download-wda --help`.
+          echo "::group::download-wda"
+          appium driver run xcuitest download-wda -- --outdir="$HOME/wda" --kind sim --platform iOS 2>&1 \
             || echo "download-wda exited non-zero: $?"
-          echo "--- recursive listing of $HOME/wda ---"
+          echo "--- listing of $HOME/wda ---"
           ls -laR "$HOME/wda" 2>&1 || true
-          echo "--- any .app under it ---"
           find "$HOME/wda" -name '*.app' 2>/dev/null || true
           echo "::endgroup::"
 
