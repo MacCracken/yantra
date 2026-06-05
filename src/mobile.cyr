@@ -33,6 +33,16 @@ fn yantra_mobile_set_ios_device(name, version): i64 {
     return 0;
 }
 
+# Optional iOS simulator UDID (appium:udid). When the target sim is already
+# booted, pinning the exact UDID makes Appium attach to *that* instance instead
+# of resolving deviceName/platformVersion to a (possibly different, un-booted)
+# duplicate and re-running its boot monitor. 0 = omit.
+var _yantra_ios_udid = 0;
+fn yantra_mobile_set_ios_udid(udid): i64 {
+    _yantra_ios_udid = udid;
+    return 0;
+}
+
 # Build the W3C capabilities JSON for an Appium session. Returns a cstr or 0
 # for an unsupported platform. app_id is the Android package or iOS bundle id.
 fn _mobile_caps(platform, app_id): i64 {
@@ -58,6 +68,7 @@ fn _mobile_caps(platform, app_id): i64 {
         sandhi_json_add_string(always, "appium:bundleId", app_id);
         if (_yantra_ios_device != 0)  { sandhi_json_add_string(always, "appium:deviceName", _yantra_ios_device); }
         if (_yantra_ios_version != 0) { sandhi_json_add_string(always, "appium:platformVersion", _yantra_ios_version); }
+        if (_yantra_ios_udid != 0)    { sandhi_json_add_string(always, "appium:udid", _yantra_ios_udid); }
     }
 
     var caps = sandhi_json_obj_new();

@@ -25,6 +25,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - **iOS** via `macos-latest` + a runner-matched simulator (the job picks the
     available device/iOS and runs a device-matched copy of the e2e) +
     Appium/XCUITest.
+- **`yantra_mobile_set_ios_udid(udid)`** — pin an iOS session to an exact
+  simulator UDID (`appium:udid`). When the target sim is already booted, this
+  makes Appium attach to *that* instance instead of resolving
+  deviceName/platformVersion to a (possibly different, un-booted) duplicate and
+  re-running its boot monitor. Optional; deviceName/platformVersion still work.
 - **`scripts/parity-appium.py`** — the Appium-Python side of the **mobile**
   parity benchmark (open → page source → find → tap), mirroring
   `scripts/parity-playwright.mjs` for web. Reference harness; not run in CI.

@@ -257,14 +257,26 @@ jobs:
         # (iPhone 17 / iOS 26.5). The hosted runner ships a different Xcode/iOS,
         # so pick whatever sim the runner has and run a device-matched copy.
         run: |
+          xcodebuild -version || true
           DEV="$(xcrun simctl list devices available | grep -Eo 'iPhone [0-9]+' | sort -t' ' -k2 -n | tail -1)"
           VER="$(xcrun simctl list runtimes available | grep -Eo 'iOS [0-9]+\.[0-9]+' | tail -1 | awk '{print $2}')"
-          echo "Using simulator: $DEV (iOS $VER)"
-          # Boot the sim and WAIT for it to be fully booted — the XCUITest
+          # Resolve the EXACT UDID of "$DEV" under the "iOS $VER" runtime. There
+          # can be multiple "iPhone 17"s across runtimes; Appium resolving by
+          # deviceName+platformVersion can pick a different (un-booted) instance
+          # than the one we boot, then fail its boot monitor ("failed to finish
+          # booting after 120s") — so we pin the UDID we actually boot.
+          UDID="$(xcrun simctl list devices available | awk -v ver="-- iOS $VER --" -v dev="$DEV" '
+            $0==ver {inblk=1; next}
+            /^-- / {inblk=0}
+            inblk && $0 ~ ("^[[:space:]]*" dev " \\(") {
+              if (match($0, /[0-9A-Fa-f-]{36}/)) { print substr($0, RSTART, RLENGTH); exit }
+            }')"
+          echo "Using simulator: $DEV (iOS $VER) UDID=$UDID"
+          # Boot the exact UDID and WAIT for it to be fully booted — the XCUITest
           # session-create builds/launches WebDriverAgent on it, which needs a
           # ready device (and the first build can take a minute+).
-          xcrun simctl boot "$DEV" || true
-          xcrun simctl bootstatus "$DEV" -b || true
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b || true
           # log-level debug so a WebDriverAgent / xcodebuild failure shows up in
           # the dumped log on failure (error-level hides the real cause).
           appium --port 4723 --log-level debug >/tmp/appium.log 2>&1 &
@@ -272,23 +284,30 @@ jobs:
             curl -sf http://127.0.0.1:4723/status >/dev/null 2>&1 && break
             sleep 1
           done
-          sed -E "s/yantra_mobile_set_ios_device\\(\"[^\"]*\", \"[^\"]*\"\\)/yantra_mobile_set_ios_device(\"$DEV\", \"$VER\")/" \
-            tests/e2e/ios-appium-smoke.tcyr > /tmp/ios-ci.tcyr
+          # Rewrite the device/version line for this runner AND pin the booted
+          # UDID (appium:udid) so Appium attaches to the running sim instead of
+          # re-resolving + re-booting a duplicate.
+          # Anchor on the real call (leading whitespace, not a '#  ...' comment),
+          # else the doc-comment example line gets turned into top-level code.
+          awk -v dev="$DEV" -v ver="$VER" -v udid="$UDID" '
+            /^[[:space:]]*yantra_mobile_set_ios_device\(/ {
+              print "    yantra_mobile_set_ios_device(\"" dev "\", \"" ver "\");"
+              if (udid != "") print "    yantra_mobile_set_ios_udid(\"" udid "\");"
+              next
+            }
+            { print }
+          ' tests/e2e/ios-appium-smoke.tcyr > /tmp/ios-ci.tcyr
           # Run from repo root so the relative include paths still resolve.
-          # Capture the exit code so we can surface Appium's log on failure —
-          # yantra's session-create error is intentionally generic, the real
-          # reason (WDA build, sim mismatch, timeout) lives in the Appium log.
           set +e
           cyrius test /tmp/ios-ci.tcyr
           rc=$?
           set -e
           if [ "$rc" -ne 0 ]; then
-            # Decisive isolation: POST /session via curl with the EXACT caps
-            # yantra builds. If curl creates a session, the bug is yantra's macOS
-            # transport (sandhi/net) — the same wd_connect_timeout path passes the
-            # Android e2e on Linux. If curl ALSO fails, it's Appium/WDA/runner env.
+            # Isolation probe: POST /session via curl with the EXACT caps yantra
+            # builds (now incl. appium:udid). curl-creates → yantra transport;
+            # curl-also-fails → Appium/WDA/runner env (where this currently sits).
             echo "::group::Direct curl POST /session probe (yantra transport vs Appium/WDA)"
-            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'"}}}'
+            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'","appium:udid":"'"$UDID"'"}}}'
             echo "caps: $CAPS"
             curl -sS -m 240 -w '\nHTTP %{http_code}\n' -X POST http://127.0.0.1:4723/session \
               -H 'Content-Type: application/json' -d "$CAPS" \
