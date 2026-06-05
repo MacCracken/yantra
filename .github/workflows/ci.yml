@@ -325,9 +325,9 @@ jobs:
             # builds (now incl. appium:udid). curl-creates → yantra transport;
             # curl-also-fails → Appium/WDA/runner env (where this currently sits).
             echo "::group::Direct curl POST /session probe (yantra transport vs Appium/WDA)"
-            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'","appium:udid":"'"$UDID"'","appium:isHeadless":true,"appium:wdaLaunchTimeout":240000}}}'
+            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'","appium:udid":"'"$UDID"'","appium:isHeadless":true,"appium:wdaLaunchTimeout":360000}}}'
             echo "caps: $CAPS"
-            curl -sS -m 240 -w '\nHTTP %{http_code}\n' -X POST http://127.0.0.1:4723/session \
+            curl -sS -m 400 -w '\nHTTP %{http_code}\n' -X POST http://127.0.0.1:4723/session \
               -H 'Content-Type: application/json' -d "$CAPS" \
               || echo "curl probe could not connect to Appium"
             echo "::endgroup::"
