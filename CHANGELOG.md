@@ -42,15 +42,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   WebKit job goes green.)
 
 ### Changed
-- **Toolchain pin → 6.0.63** (from 6.0.59) — ships all platforms
+- **Toolchain pin → 6.0.65** (from 6.0.59) — ships all platforms
   (x86_64/aarch64 × linux/macos + windows), so it stays the cross-platform floor.
-  6.0.63 **fixes the actual root cause** of the macOS iOS-runner failure: an
-  arm64-macOS `GETDENTS64` syscall-translation bug (the aarch64 number `61` was
-  left untranslated → `EBADF`) meant cyrius couldn't *enumerate a directory that
-  existed*, so `cyrius lib sync` reported `snapshot lib not found` on a populated
-  snapshot. The earlier `cp`-form / cache theories (and the 6.0.62 installer
-  change) were red herrings — the stdlib files were on disk all along; cyrius
-  just couldn't read the directory on arm64 macOS. Found by yantra CI.
+  Two arm64-macOS syscall-translation fixes unblock the iOS runner, both found by
+  yantra CI:
+  - **6.0.63** fixed `GETDENTS64` (aarch64 number `61` left untranslated →
+    `EBADF`): cyrius couldn't *enumerate a directory that existed*, so
+    `cyrius lib sync` reported `snapshot lib not found` on a populated snapshot.
+    The earlier `cp`-form / cache theories (and the 6.0.62 installer change) were
+    red herrings — the stdlib files were on disk all along; cyrius just couldn't
+    read the directory on arm64 macOS.
+  - **6.0.65** adds `nanosleep` (`syscall(35)`) to the aarch64 mach-o `ESYSXLAT`
+    table plus thread fixes. yantra's `_yantra_sleep_ms` (every auto-wait poll)
+    calls `syscall(35)`; previously untranslated on Apple Silicon, it faulted the
+    iOS e2e at runtime (`exit 127`). cyrius issue
+    `2026-06-04-macos-nanosleep-syscall-35-not-in-esysxlat`.
 - **`setup-cyrius` hardened** as defense-in-depth: cache key bumped, the Install
   step tolerates a non-zero exit, and an **idempotent, always-run "Ensure
   toolchain complete"** step verifies/repairs bin (+ ad-hoc codesign on macOS),
@@ -58,7 +64,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   can't fix the dir-walk bug itself (that's the 6.0.63 binary's job) but gives a
   conclusive diagnostic dump and covers generic missing-files / poisoned-cache
   cases. No-op on a healthy home; remove once `macos-15-arm64` CI is confirmed
-  green on 6.0.63 (cyrius issue
+  green on 6.0.65 (cyrius issue
   `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`).
 - **`setup-cyrius` now installs via the canonical `scripts/install.sh`** so the
   same action serves the Linux (web/Android) and macOS (iOS) jobs. That
