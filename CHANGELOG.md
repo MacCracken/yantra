@@ -33,15 +33,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   build artifact.
 
 ### Fixed
-- **iOS-runner fault (`exit 127`) — portable auto-wait sleep.** `_yantra_sleep_ms`
+- **Auto-wait sleep was a no-op on macOS — now portable.** `_yantra_sleep_ms`
   (`src/runtime.cyr`, fired by every auto-wait poll and retry backoff) was calling
-  raw `syscall(35)` — the **x86-Linux** `nanosleep` number. On aarch64 `35` is
-  `unlinkat`, and cyrius deliberately does **not** route `35` as nanosleep in the
-  aarch64 Mach-O `ESYSXLAT` table, so the call faulted at runtime on the iOS
-  simulator runner. Replaced with `poll(NULL, 0, ms)` (`syscall(7)`, rerouted
-  `7→230` on Darwin and plain `poll` on Linux) — the same portable path cyrius's
-  stdlib `chrono.sleep_ms` uses. This, not a toolchain change, is what clears the
-  iOS e2e. (cyrius issue `2026-06-04-macos-nanosleep-syscall-35-not-in-esysxlat`.)
+  raw `syscall(35)` — the **x86-Linux** `nanosleep` number. On aarch64-macho `35`
+  is `unlinkat`, so the auto-wait *never actually slept* on macOS (it called
+  `unlinkat` on the timespec pointer and returned). Replaced with
+  `poll(NULL, 0, ms)` (`syscall(7)`, rerouted `7→230` on Darwin, plain `poll` on
+  Linux) — the portable path cyrius's stdlib `chrono.sleep_ms` uses. NOTE: this is
+  a real correctness fix but is **not** what unblocks the iOS CI runner — that
+  `exit 127` was a cyrius `cbt` bug (`cyrius test` ran the compiled arm64 binary
+  through `/usr/bin/qemu-aarch64`, absent on a native host, and never ad-hoc
+  codesigned it), fixed in the **6.0.66** toolchain. cyrius issue
+  `2026-06-05-macos-cyrius-test-run-binary-qemu-aarch64-unsigned`.
 - **WebKit session-create.** `_web_caps_webkit` no longer sends
   `browserName: "webkit"` (a Playwright label, not a real WebDriver browser
   name) — it sends an empty `alwaysMatch`, which the W3C matcher accepts against
@@ -50,7 +53,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   now gating (no longer `continue-on-error`).
 
 ### Changed
-- **Toolchain pin → 6.0.65** (from 6.0.59) — ships all platforms
+- **Toolchain pin → 6.0.66** (from 6.0.59) — ships all platforms
   (x86_64/aarch64 × linux/macos + windows), so it stays the cross-platform floor.
   - **6.0.63** fixed the arm64-macOS `GETDENTS64` syscall-translation bug
     (aarch64 number `61` left untranslated → `EBADF`): cyrius couldn't *enumerate
@@ -64,6 +67,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     `unlinkat`, not nanosleep) plus thread fixes. This is the path yantra's own
     sleep fix above adopts; cyrius does **not** add `35` to the aarch64 `ESYSXLAT`
     table on purpose.
+  - **6.0.66** fixes the two `cbt` bugs behind the iOS-runner `exit 127`
+    (found by yantra CI): `run_binary` no longer routes through
+    `/usr/bin/qemu-aarch64` on a native Apple-Silicon host (the qemu cross-run
+    path is now gated to non-macOS), and every compile→run path
+    (`test`/`run`/`bench`/`fuzz`) ad-hoc codesigns its tmp binary via a hoisted
+    `_macho_codesign` helper (previously only `cyrius build` signed, so AMFI would
+    SIGKILL the unsigned test binary). cyrius issue
+    `2026-06-05-macos-cyrius-test-run-binary-qemu-aarch64-unsigned`.
 - **`setup-cyrius` hardened** as defense-in-depth: cache key bumped, the Install
   step tolerates a non-zero exit, and an **idempotent, always-run "Ensure
   toolchain complete"** step verifies/repairs bin (+ ad-hoc codesign on macOS),
@@ -71,7 +82,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   can't fix the dir-walk bug itself (that's the 6.0.63 binary's job) but gives a
   conclusive diagnostic dump and covers generic missing-files / poisoned-cache
   cases. No-op on a healthy home; remove once `macos-15-arm64` CI is confirmed
-  green on 6.0.65 (cyrius issue
+  green on 6.0.66 (cyrius issue
   `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`).
 - **`setup-cyrius` now installs via the canonical `scripts/install.sh`** so the
   same action serves the Linux (web/Android) and macOS (iOS) jobs. That
