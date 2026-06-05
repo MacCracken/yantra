@@ -283,6 +283,17 @@ jobs:
           rc=$?
           set -e
           if [ "$rc" -ne 0 ]; then
+            # Decisive isolation: POST /session via curl with the EXACT caps
+            # yantra builds. If curl creates a session, the bug is yantra's macOS
+            # transport (sandhi/net) — the same wd_connect_timeout path passes the
+            # Android e2e on Linux. If curl ALSO fails, it's Appium/WDA/runner env.
+            echo "::group::Direct curl POST /session probe (yantra transport vs Appium/WDA)"
+            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'"}}}'
+            echo "caps: $CAPS"
+            curl -sS -m 240 -w '\nHTTP %{http_code}\n' -X POST http://127.0.0.1:4723/session \
+              -H 'Content-Type: application/json' -d "$CAPS" \
+              || echo "curl probe could not connect to Appium"
+            echo "::endgroup::"
             echo "::group::Appium log (tail -300)"
             tail -300 /tmp/appium.log || true
             echo "::endgroup::"
