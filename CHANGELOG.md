@@ -42,19 +42,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   WebKit job goes green.)
 
 ### Changed
-- **Toolchain pin → 6.0.62** (from 6.0.59) — ships all platforms
+- **Toolchain pin → 6.0.63** (from 6.0.59) — ships all platforms
   (x86_64/aarch64 × linux/macos + windows), so it stays the cross-platform floor.
-  6.0.62 **fixes the cyrius macOS installer bug** that left `versions/<v>/lib`
-  unpopulated (the whole-dir `cp -r` returned 0 yet copied nothing on the
-  `macos-15-arm64` runner; the installer now uses the contents form
-  `cp -R src/lib/. dest/lib/` + a fail-loud assert). The bug only ever
-  reproduced on that runner (not on local macOS), so the fix is verified locally
-  but **pending confirmation on the runner itself**.
-- **`setup-cyrius` keeps a stdlib-snapshot backfill** as a runner-safety net:
-  if `versions/<v>/lib` is missing after install it pulls `lib/` from the
-  release tarball (no-op on Linux and once 6.0.62's installer fix takes on the
-  runner). Retained until the `macos-15-arm64` CI confirms the upstream fix;
-  cyrius issue `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`.
+  6.0.63 **fixes the actual root cause** of the macOS iOS-runner failure: an
+  arm64-macOS `GETDENTS64` syscall-translation bug (the aarch64 number `61` was
+  left untranslated → `EBADF`) meant cyrius couldn't *enumerate a directory that
+  existed*, so `cyrius lib sync` reported `snapshot lib not found` on a populated
+  snapshot. The earlier `cp`-form / cache theories (and the 6.0.62 installer
+  change) were red herrings — the stdlib files were on disk all along; cyrius
+  just couldn't read the directory on arm64 macOS. Found by yantra CI.
+- **`setup-cyrius` hardened** as defense-in-depth: cache key bumped, the Install
+  step tolerates a non-zero exit, and an **idempotent, always-run "Ensure
+  toolchain complete"** step verifies/repairs bin (+ ad-hoc codesign on macOS),
+  lib, the `~/.cyrius` symlinks, and `current` from the release tarball. It
+  can't fix the dir-walk bug itself (that's the 6.0.63 binary's job) but gives a
+  conclusive diagnostic dump and covers generic missing-files / poisoned-cache
+  cases. No-op on a healthy home; remove once `macos-15-arm64` CI is confirmed
+  green on 6.0.63 (cyrius issue
+  `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`).
 - **`setup-cyrius` now installs via the canonical `scripts/install.sh`** so the
   same action serves the Linux (web/Android) and macOS (iOS) jobs. That
   installer is itself OS/arch-aware — it detects the platform, downloads the

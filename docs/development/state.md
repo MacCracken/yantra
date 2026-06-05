@@ -14,13 +14,15 @@ chromedriver, **Firefox** (geckodriver), **WebKit** (WebKitWebDriver under Xvfb)
 now installed via the canonical OS-aware `scripts/install.sh` (serves both the
 Linux and macOS runners). New `scripts/parity-appium.py` (mobile parity, mirrors
 the web `parity-playwright.mjs`); bench-history CSV uploaded as a CI artifact.
-New e2e: `tests/e2e/firefox-smoke.tcyr`, `webkit-smoke.tcyr`. **Pin → 6.0.62**
-(cross-platform floor), which fixes the cyrius macOS installer bug that left
-`versions/<v>/lib` unpopulated (broke `cyrius lib sync` on the iOS runner);
-`setup-cyrius` keeps a snapshot backfill as a runner-safety net until that CI
-confirms. WebKit caps fix: omit `browserName` so WebKitGTK's driver accepts the
-session (WebKit CI job stays non-blocking until confirmed green — architecture
-004).
+New e2e: `tests/e2e/firefox-smoke.tcyr`, `webkit-smoke.tcyr`. **Pin → 6.0.63**
+(cross-platform floor), which fixes the real iOS-runner blocker: an arm64-macOS
+`GETDENTS64` syscall-translation bug (`61` untranslated → `EBADF`) that made
+`cyrius lib sync` report `snapshot lib not found` on a directory that existed
+(the files were always on disk — cyrius couldn't enumerate the dir on arm64
+macOS). `setup-cyrius` keeps an idempotent "Ensure toolchain complete" step as
+defense-in-depth + diagnostics until the runner confirms green. WebKit caps fix:
+omit `browserName` so WebKitGTK's driver accepts the session (WebKit CI job
+stays non-blocking until confirmed green — architecture 004).
 
 **0.6.1** — 2026-06-04. **M3 — Android Appium backend now LIVE.**
 `tests/e2e/android-appium-smoke.tcyr` passes **4/4** against a live android-34 /
@@ -70,14 +72,16 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.0.62` (in `cyrius.cyml [package].cyrius`) — carries the
+- **Cyrius pin**: `6.0.63` (in `cyrius.cyml [package].cyrius`) — carries the
   6.0.59 Darwin `net.cyr` port; ships all platforms (x86_64/aarch64 ×
   linux/macos + windows), so it stays the cross-platform floor. Vendored `lib/`
-  is gitignored and materialized with `cyrius lib sync`. 6.0.62 **fixes** the
-  macOS installer bug (`versions/<v>/lib` left empty by the whole-dir `cp -r`;
-  now uses the contents form + fail-loud assert) — verified locally, pending
-  `macos-15-arm64` runner confirmation. `setup-cyrius` retains a snapshot
-  backfill as a runner-safety net until then (cyrius issue
+  is gitignored and materialized with `cyrius lib sync`. 6.0.63 **fixes** the
+  arm64-macOS `GETDENTS64` syscall-translation bug (`61` untranslated → `EBADF`)
+  that made `cyrius lib sync` report `snapshot lib not found` on a populated dir
+  (the earlier `cp`/cache theories were red herrings — cyrius simply couldn't
+  enumerate the directory on arm64 macOS). `setup-cyrius`'s always-run "Ensure
+  toolchain complete" step stays as defense-in-depth + diagnostics until the
+  `macos-15-arm64` runner confirms green, then it's removed (cyrius issue
   `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`).
 - **Bundled sandhi**: 1.4.1 (includes the `Connection: close` Content-Length
   framing fix that yantra's M2 WebDriver backend depends on).

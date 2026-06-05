@@ -30,51 +30,79 @@ runs:
         # Keyed on runner OS+arch so the macOS and Linux caches stay split.
         # The canonical install.sh lays out versions/<v>/{bin,lib} +
         # ~/.cyrius/{bin,lib} symlinks + current.
-        key: cyrius-${{ runner.os }}-${{ runner.arch }}-${{ steps.ver.outputs.version }}-v4
+        key: cyrius-${{ runner.os }}-${{ runner.arch }}-${{ steps.ver.outputs.version }}-v5
 
     - name: Install toolchain
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         V="${{ steps.ver.outputs.version }}"
-        # The canonical installer is OS/arch-aware: it detects the platform via
-        # uname, downloads the matching <arch>-<os> release tarball, codesigns on
-        # macOS, and lays out ~/.cyrius (versions/<v>/{bin,lib} + symlinks +
-        # current). The same one-liner the README documents — so the same action
-        # serves the Linux (web/Android) and macOS (iOS) jobs unchanged.
+        # Canonical OS/arch-aware installer (downloads the matching <arch>-<os>
+        # tarball, codesigns on macOS, lays out ~/.cyrius). Tolerate a non-zero
+        # exit so a partial install is recoverable by the Ensure step below.
         echo "Installing Cyrius $V via the canonical scripts/install.sh"
         curl -sSf "https://raw.githubusercontent.com/MacCracken/cyrius/$V/scripts/install.sh" \
-          | CYRIUS_VERSION="$V" sh
+          | CYRIUS_VERSION="$V" sh \
+          || echo "::warning::install.sh exited non-zero — Ensure step will complete the layout"
 
-    - name: Ensure stdlib snapshot
-      if: steps.cache.outputs.cache-hit != 'true'
+    - name: Ensure toolchain complete
+      # ALWAYS runs (NOT gated on cache-hit). The actual root cause of the
+      # macos-15-arm64 `cyrius lib sync` failure was NOT missing files — it was
+      # an arm64-macOS GETDENTS64 syscall-translation bug (`61` left
+      # untranslated → EBADF) so cyrius couldn't *enumerate* a directory that
+      # existed. FIXED in the cyrius 6.0.63 binary. This step can't fix that (it
+      # uses shell), so it's now (a) a diagnostic dump confirming lib IS present
+      # and 6.0.63 reads it, and (b) a generic safety net for missing-files /
+      # poisoned-cache cases. Idempotent; no-op on a healthy home. REMOVE after
+      # macos-15-arm64 CI confirms green on 6.0.63 (cyrius issue
+      # 2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync).
       shell: bash
       run: |
-        # Runner-safety net for a cyrius macOS installer bug: the installer left
-        # versions/<v>/lib unpopulated on the macos-15-arm64 runner, so
-        # `cyrius lib sync` failed with "snapshot lib not found at …". Fixed
-        # upstream in 6.0.62 (whole-dir cp -r → contents cp -R + fail-loud
-        # assert), but the bug only ever reproduced on that runner — so until a
-        # green run confirms the fix THERE, keep backfilling lib/ from the
-        # release tarball if the snapshot is missing. No-ops on Linux and once
-        # the 6.0.62 installer fix takes on the runner (the step logs which).
-        # Drop this once macos-15-arm64 CI is confirmed green (cyrius issue
-        # 2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync).
+        set -euo pipefail
         V="${{ steps.ver.outputs.version }}"
-        LIBDIR="$HOME/.cyrius/versions/$V/lib"
-        if [ -d "$LIBDIR" ] && [ -n "$(ls -A "$LIBDIR" 2>/dev/null)" ]; then
-          echo "stdlib snapshot present ($LIBDIR)"; exit 0
-        fi
-        echo "stdlib snapshot missing at $LIBDIR — backfilling from the release tarball"
+        H="$HOME/.cyrius"; VDIR="$H/versions/$V"; BIN="$VDIR/bin"; LIB="$VDIR/lib"
         A="$(uname -m)"; case "$A" in arm64|aarch64) A=aarch64 ;; x86_64|amd64) A=x86_64 ;; esac
         O="$(uname -s | tr 'A-Z' 'a-z')"; case "$O" in darwin) O=macos ;; linux) O=linux ;; esac
         T="$A-$O"
-        WORK="$(mktemp -d)"
-        curl -sSfL "https://github.com/MacCracken/cyrius/releases/download/$V/cyrius-$V-$T.tar.gz" \
-          | tar xz -C "$WORK"
-        mkdir -p "$LIBDIR"
-        cp -R "$WORK/cyrius-$V-$T/lib/." "$LIBDIR/"
-        echo "backfilled $(ls -1 "$LIBDIR"/*.cyr 2>/dev/null | wc -l) lib files"
+
+        echo "::group::~/.cyrius layout (before repair)"
+        ls -la "$H" 2>/dev/null || echo "(no ~/.cyrius)"
+        ls -la "$VDIR" 2>/dev/null || echo "(no versions/$V)"
+        echo "bin files: $(ls -1 "$BIN" 2>/dev/null | wc -l | tr -d ' '), lib .cyr: $(ls -1 "$LIB"/*.cyr 2>/dev/null | wc -l | tr -d ' ')"
+        echo "::endgroup::"
+
+        bin_ok() { [ -d "$BIN" ] && [ -n "$(ls -A "$BIN" 2>/dev/null)" ]; }
+        lib_ok() { [ -d "$LIB" ] && [ -n "$(ls -A "$LIB" 2>/dev/null)" ]; }
+
+        if ! bin_ok || ! lib_ok; then
+          echo "toolchain incomplete (bin_ok=$(bin_ok && echo 1 || echo 0) lib_ok=$(lib_ok && echo 1 || echo 0)) — repairing from the release tarball"
+          WORK="$(mktemp -d)"
+          curl -sSfL "https://github.com/MacCracken/cyrius/releases/download/$V/cyrius-$V-$T.tar.gz" | tar xz -C "$WORK"
+          SRC="$WORK/cyrius-$V-$T"
+          if ! bin_ok; then
+            mkdir -p "$BIN"; cp -R "$SRC/bin/." "$BIN/"; chmod +x "$BIN"/* 2>/dev/null || true
+            # macOS SIGKILLs unsigned cross-built mach-o binaries — ad-hoc sign.
+            if [ "$O" = macos ] && command -v codesign >/dev/null 2>&1; then
+              for b in "$BIN"/*; do
+                [ -f "$b" ] || continue
+                head -c4 "$b" | od -An -tx1 | tr -d ' \n' | grep -qiE "cffaedfe|cefaedfe|feedface|feedfacf" \
+                  && codesign -s - -f "$b" >/dev/null 2>&1 || true
+              done
+              echo "ad-hoc codesigned mach-o binaries"
+            fi
+          fi
+          if ! lib_ok; then mkdir -p "$LIB"; cp -R "$SRC/lib/." "$LIB/"; fi
+        fi
+
+        # Idempotent finalize: symlinks + current (install.sh may have aborted
+        # before doing these).
+        ln -sfn "$BIN" "$H/bin"
+        ln -sfn "$LIB" "$H/lib"
+        [ -f "$H/current" ] || echo "$V" > "$H/current"
+
+        bin_ok || { echo "FATAL: bin still empty after repair"; exit 1; }
+        lib_ok || { echo "FATAL: lib still empty after repair"; exit 1; }
+        echo "toolchain complete: $(ls -1 "$BIN" | wc -l | tr -d ' ') bin, $(ls -1 "$LIB"/*.cyr 2>/dev/null | wc -l | tr -d ' ') lib .cyr"
 
     - name: Export PATH and CYRIUS_HOME
       shell: bash

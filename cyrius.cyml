@@ -5,7 +5,7 @@ description = "Sovereign UI automation — browser + mobile, as a Cyrius library
 license = "GPL-3.0-only"
 repository = "https://github.com/MacCracken/yantra"
 language = "cyrius"
-cyrius = "6.0.62"
+cyrius = "6.0.63"
 
 # yantra is a **library** consumed by `.tcyr` test files — it is not a
 # test framework. `cyrius test` stays the runner. yantra adds the verbs:
