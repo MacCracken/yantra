@@ -30,6 +30,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   makes Appium attach to *that* instance instead of resolving
   deviceName/platformVersion to a (possibly different, un-booted) duplicate and
   re-running its boot monitor. Optional; deviceName/platformVersion still work.
+- **`yantra_mobile_set_ios_wda_launch_timeout(ms)`** + a sane default
+  (`appium:wdaLaunchTimeout` = 4 min). Appium's 60s default SIGTERMs the first
+  WebDriverAgent build (xcodebuild) before it finishes cold, failing the session
+  with `connect ECONNREFUSED 127.0.0.1:8100`. yantra now requests a budget that
+  matches its own session-open budget, which was also raised to **5 min** so the
+  POST `/session` outlasts the WDA build instead of giving up mid-build.
 - **`scripts/parity-appium.py`** — the Appium-Python side of the **mobile**
   parity benchmark (open → page source → find → tap), mirroring
   `scripts/parity-playwright.mjs` for web. Reference harness; not run in CI.

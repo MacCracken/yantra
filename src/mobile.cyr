@@ -43,6 +43,18 @@ fn yantra_mobile_set_ios_udid(udid): i64 {
     return 0;
 }
 
+# WebDriverAgent launch budget (appium:wdaLaunchTimeout, ms). Appium's default
+# is 60s, but the FIRST WDA launch builds WebDriverAgent via xcodebuild, which
+# routinely exceeds 60s cold — Appium then SIGTERMs the build and the session
+# fails (`/status` from WDA :8100 never arrived). yantra's own session-open
+# budget is 5 min (see yantra_mobile_open), so default WDA's to 4 min: Appium
+# won't quit WDA before yantra quits the session. Override for fast/prebuilt WDA.
+var _yantra_ios_wda_timeout = 240000;
+fn yantra_mobile_set_ios_wda_launch_timeout(ms): i64 {
+    _yantra_ios_wda_timeout = ms;
+    return 0;
+}
+
 # Build the W3C capabilities JSON for an Appium session. Returns a cstr or 0
 # for an unsupported platform. app_id is the Android package or iOS bundle id.
 fn _mobile_caps(platform, app_id): i64 {
@@ -69,6 +81,9 @@ fn _mobile_caps(platform, app_id): i64 {
         if (_yantra_ios_device != 0)  { sandhi_json_add_string(always, "appium:deviceName", _yantra_ios_device); }
         if (_yantra_ios_version != 0) { sandhi_json_add_string(always, "appium:platformVersion", _yantra_ios_version); }
         if (_yantra_ios_udid != 0)    { sandhi_json_add_string(always, "appium:udid", _yantra_ios_udid); }
+        if (_yantra_ios_wda_timeout > 0) {
+            sandhi_json_add_int(always, "appium:wdaLaunchTimeout", _yantra_ios_wda_timeout);
+        }
     }
 
     var caps = sandhi_json_obj_new();
@@ -90,16 +105,18 @@ fn yantra_mobile_open(platform, app_id): i64 {
         _yantra_span_exit();
         return 0;
     }
-    # Bounded retry. Mobile session creation can take 60s+ (Appium installs the
-    # UiAutomator2 server / builds WebDriverAgent on first use), which exceeds
-    # sandhi's default RPC timeout — so we use wd_connect_timeout with a generous
-    # budget rather than the bare sandhi_wd_new_session.
+    # Bounded retry. Mobile session creation can take minutes on first use
+    # (Appium installs the UiAutomator2 server / builds WebDriverAgent via
+    # xcodebuild), which exceeds sandhi's default RPC timeout — so we use
+    # wd_connect_timeout with a 5-min budget. It must outlast the iOS
+    # appium:wdaLaunchTimeout (default 4 min) so Appium finishes the WDA build
+    # before yantra gives up on the POST /session.
     var attempt = 1;
     var n = _yantra_open_attempts_get();
     var wd = 0;
     var go = 1;
     while (go == 1) {
-        wd = wd_connect_timeout(_yantra_appium_port, caps, 180000);
+        wd = wd_connect_timeout(_yantra_appium_port, caps, 300000);
         if (wd != 0) { go = 0; }
         elif (attempt >= n) { go = 0; }
         else { _yantra_backoff(attempt); attempt = attempt + 1; }
