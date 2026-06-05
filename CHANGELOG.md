@@ -36,6 +36,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with `connect ECONNREFUSED 127.0.0.1:8100`. yantra now requests a budget that
   matches its own session-open budget, which was also raised to **5 min** so the
   POST `/session` outlasts the WDA build instead of giving up mid-build.
+- **`yantra_mobile_set_ios_headless(on)`** (`appium:isHeadless`). On a
+  display-less host (CI), a sim pre-booted headless makes Appium log "booted
+  while its UI is not visible … restart it with the Simulator window visible",
+  launch `Simulator.app`, and then hang in `waitForBoot` ("failed to finish
+  booting after 120s"). Headless skips that visible-UI restart. Optional; omitted
+  by default (a developer Mac with a display can keep the UI).
 - **`scripts/parity-appium.py`** — the Appium-Python side of the **mobile**
   parity benchmark (open → page source → find → tap), mirroring
   `scripts/parity-playwright.mjs` for web. Reference harness; not run in CI.

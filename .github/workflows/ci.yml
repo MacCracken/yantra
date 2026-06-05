@@ -284,15 +284,18 @@ jobs:
             curl -sf http://127.0.0.1:4723/status >/dev/null 2>&1 && break
             sleep 1
           done
-          # Rewrite the device/version line for this runner AND pin the booted
-          # UDID (appium:udid) so Appium attaches to the running sim instead of
-          # re-resolving + re-booting a duplicate.
-          # Anchor on the real call (leading whitespace, not a '#  ...' comment),
-          # else the doc-comment example line gets turned into top-level code.
+          # Rewrite the device/version line for this runner, pin the booted UDID
+          # (appium:udid so Appium attaches to the running sim, not a duplicate),
+          # and force headless (appium:isHeadless) — the runner has no display,
+          # so Appium's default "restart with the Simulator window visible" path
+          # hangs in waitForBoot. Anchor on the real call (leading whitespace,
+          # not a '#  ...' comment) so the doc-comment example isn't turned into
+          # top-level code.
           awk -v dev="$DEV" -v ver="$VER" -v udid="$UDID" '
             /^[[:space:]]*yantra_mobile_set_ios_device\(/ {
               print "    yantra_mobile_set_ios_device(\"" dev "\", \"" ver "\");"
               if (udid != "") print "    yantra_mobile_set_ios_udid(\"" udid "\");"
+              print "    yantra_mobile_set_ios_headless(1);"
               next
             }
             { print }
@@ -307,7 +310,7 @@ jobs:
             # builds (now incl. appium:udid). curl-creates → yantra transport;
             # curl-also-fails → Appium/WDA/runner env (where this currently sits).
             echo "::group::Direct curl POST /session probe (yantra transport vs Appium/WDA)"
-            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'","appium:udid":"'"$UDID"'"}}}'
+            CAPS='{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:bundleId":"com.apple.Preferences","appium:deviceName":"'"$DEV"'","appium:platformVersion":"'"$VER"'","appium:udid":"'"$UDID"'","appium:isHeadless":true,"appium:wdaLaunchTimeout":240000}}}'
             echo "caps: $CAPS"
             curl -sS -m 240 -w '\nHTTP %{http_code}\n' -X POST http://127.0.0.1:4723/session \
               -H 'Content-Type: application/json' -d "$CAPS" \

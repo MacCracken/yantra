@@ -55,6 +55,19 @@ fn yantra_mobile_set_ios_wda_launch_timeout(ms): i64 {
     return 0;
 }
 
+# Run the iOS simulator headless (appium:isHeadless). Without it, Appium insists
+# on a VISIBLE Simulator UI: if the sim was pre-booted headless (e.g. `simctl
+# boot` in CI) it logs "booted while its UI is not visible. Trying to restart it
+# with the Simulator window visible", launches Simulator.app, then waits for boot
+# — which times out ("failed to finish booting after 120s") on a display-less
+# runner. Headless skips the visible-UI restart entirely. 0 = omit (let Appium
+# show the UI — fine for a developer Mac with a display). Set 1 for headless CI.
+var _yantra_ios_headless = 0;
+fn yantra_mobile_set_ios_headless(on): i64 {
+    _yantra_ios_headless = on;
+    return 0;
+}
+
 # Build the W3C capabilities JSON for an Appium session. Returns a cstr or 0
 # for an unsupported platform. app_id is the Android package or iOS bundle id.
 fn _mobile_caps(platform, app_id): i64 {
@@ -84,6 +97,7 @@ fn _mobile_caps(platform, app_id): i64 {
         if (_yantra_ios_wda_timeout > 0) {
             sandhi_json_add_int(always, "appium:wdaLaunchTimeout", _yantra_ios_wda_timeout);
         }
+        if (_yantra_ios_headless != 0) { sandhi_json_add_raw(always, "appium:isHeadless", "true"); }
     }
 
     var caps = sandhi_json_obj_new();
