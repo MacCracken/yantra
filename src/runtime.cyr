@@ -33,11 +33,15 @@ fn yantra_last_error_str(): i64 {
 }
 
 # ── monotonic sleep (shared) ────────────
+# Portable ms-granular sleep: `poll(NULL, 0, ms)` blocks for `ms` then returns 0.
+# `poll` (syscall 7) is rerouted 7→230 on the Mach-O/Darwin backend and is plain
+# poll on Linux — the same call cyrius's stdlib `chrono.sleep_ms` uses. The old
+# raw `syscall(35)` assumed the x86-Linux nanosleep number; on aarch64 35 is
+# `unlinkat`, and cyrius deliberately does NOT route 35 as nanosleep in the
+# aarch64 Mach-O ESYSXLAT table, so it faulted the iOS e2e at runtime (exit 127).
+# See cyrius issue 2026-06-04-macos-nanosleep-syscall-35-not-in-esysxlat.
 fn _yantra_sleep_ms(ms): i64 {
-    var ts = alloc(16);
-    store64(ts, ms / 1000);
-    store64(ts + 8, (ms % 1000) * 1000000);
-    syscall(35, ts, 0);   # nanosleep(timespec, NULL)
+    syscall(7, 0, 0, ms);   # poll(NULL, 0, ms) — portable ms sleep (7→230 Darwin)
     return 0;
 }
 

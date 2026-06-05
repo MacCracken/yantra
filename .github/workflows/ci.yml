@@ -150,13 +150,10 @@ jobs:
     name: E2E (WebKit / WebKitWebDriver)
     runs-on: ubuntu-latest
     needs: [build-and-test]
-    # Non-blocking: WebKitGTK's WebKitWebDriver reports browserName "WebKitGTK",
-    # which the W3C matcher rejects against yantra's Playwright-style "webkit"
-    # cap, and headless WebKitGTK in hosted CI is notoriously brittle. The W3C
-    # WebDriver wire is already gated green by chromedriver (e2e-webdriver) and
-    # geckodriver (e2e-firefox), and WebKit's authoritative coverage is the
-    # iOS/XCUITest path (e2e-ios). Tracked as a follow-up; see architecture 004.
-    continue-on-error: true
+    # Gating. The caps fix (omit browserName so WebKitGTK's WebKitWebDriver
+    # accepts the W3C `alwaysMatch`) held green in CI, so this job now blocks like
+    # the other web e2e jobs. (Was non-blocking while that fix was unconfirmed —
+    # see architecture 004 for the WebKitGTK browserName-mismatch background.)
     steps:
       - uses: actions/checkout@v4
 

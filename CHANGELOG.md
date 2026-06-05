@@ -16,10 +16,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - **Firefox** via geckodriver (`tests/e2e/firefox-smoke.tcyr`) — headless
     through yantra's `-headless` cap, no display needed.
   - **WebKit** via WebKitWebDriver / WebKitGTK (`tests/e2e/webkit-smoke.tcyr`),
-    run under Xvfb (`webkit2gtk-driver` has no headless cap). Currently
-    **non-blocking** (`continue-on-error`) while the fix below is confirmed in
-    CI — the WebDriver wire is already gated by chromedriver + geckodriver, and
-    WebKit's authoritative coverage is the iOS path. See
+    run under Xvfb (`webkit2gtk-driver` has no headless cap). **Gating** — was
+    briefly `continue-on-error` while the caps fix below was unconfirmed; it held
+    green, so the job now blocks like the other web e2e jobs. See
     `docs/architecture/004-webkitgtk-ci-is-non-blocking.md`.
   - **Android** via `reactivecircus/android-emulator-runner` (api-34 /
     google_apis / x86_64, KVM) + Appium/UiAutomator2.
@@ -34,29 +33,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   build artifact.
 
 ### Fixed
+- **iOS-runner fault (`exit 127`) — portable auto-wait sleep.** `_yantra_sleep_ms`
+  (`src/runtime.cyr`, fired by every auto-wait poll and retry backoff) was calling
+  raw `syscall(35)` — the **x86-Linux** `nanosleep` number. On aarch64 `35` is
+  `unlinkat`, and cyrius deliberately does **not** route `35` as nanosleep in the
+  aarch64 Mach-O `ESYSXLAT` table, so the call faulted at runtime on the iOS
+  simulator runner. Replaced with `poll(NULL, 0, ms)` (`syscall(7)`, rerouted
+  `7→230` on Darwin and plain `poll` on Linux) — the same portable path cyrius's
+  stdlib `chrono.sleep_ms` uses. This, not a toolchain change, is what clears the
+  iOS e2e. (cyrius issue `2026-06-04-macos-nanosleep-syscall-35-not-in-esysxlat`.)
 - **WebKit session-create.** `_web_caps_webkit` no longer sends
   `browserName: "webkit"` (a Playwright label, not a real WebDriver browser
   name) — it sends an empty `alwaysMatch`, which the W3C matcher accepts against
   WebKitGTK's `WebKitWebDriver` (advertised as `"WebKitGTK"`). Other drivers
-  keep their explicit browserName. (Reasoned from spec; verified once CI's
-  WebKit job goes green.)
+  keep their explicit browserName. Confirmed green in CI; the WebKit e2e job is
+  now gating (no longer `continue-on-error`).
 
 ### Changed
 - **Toolchain pin → 6.0.65** (from 6.0.59) — ships all platforms
   (x86_64/aarch64 × linux/macos + windows), so it stays the cross-platform floor.
-  Two arm64-macOS syscall-translation fixes unblock the iOS runner, both found by
-  yantra CI:
-  - **6.0.63** fixed `GETDENTS64` (aarch64 number `61` left untranslated →
-    `EBADF`): cyrius couldn't *enumerate a directory that existed*, so
-    `cyrius lib sync` reported `snapshot lib not found` on a populated snapshot.
-    The earlier `cp`-form / cache theories (and the 6.0.62 installer change) were
-    red herrings — the stdlib files were on disk all along; cyrius just couldn't
-    read the directory on arm64 macOS.
-  - **6.0.65** adds `nanosleep` (`syscall(35)`) to the aarch64 mach-o `ESYSXLAT`
-    table plus thread fixes. yantra's `_yantra_sleep_ms` (every auto-wait poll)
-    calls `syscall(35)`; previously untranslated on Apple Silicon, it faulted the
-    iOS e2e at runtime (`exit 127`). cyrius issue
-    `2026-06-04-macos-nanosleep-syscall-35-not-in-esysxlat`.
+  - **6.0.63** fixed the arm64-macOS `GETDENTS64` syscall-translation bug
+    (aarch64 number `61` left untranslated → `EBADF`): cyrius couldn't *enumerate
+    a directory that existed*, so `cyrius lib sync` reported `snapshot lib not
+    found` on a populated snapshot. The earlier `cp`-form / cache theories (and
+    the 6.0.62 installer change) were red herrings — the stdlib files were on
+    disk all along; cyrius just couldn't read the directory on arm64 macOS. Found
+    by yantra CI.
+  - **6.0.65** makes the stdlib `chrono.sleep_ms` portable (it now does
+    `poll(NULL, 0, ms)` instead of a raw nanosleep, since aarch64 `35` is
+    `unlinkat`, not nanosleep) plus thread fixes. This is the path yantra's own
+    sleep fix above adopts; cyrius does **not** add `35` to the aarch64 `ESYSXLAT`
+    table on purpose.
 - **`setup-cyrius` hardened** as defense-in-depth: cache key bumped, the Install
   step tolerates a non-zero exit, and an **idempotent, always-run "Ensure
   toolchain complete"** step verifies/repairs bin (+ ad-hoc codesign on macOS),

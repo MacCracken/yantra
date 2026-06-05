@@ -54,10 +54,10 @@ runs:
       # uses shell), so it's now (a) a diagnostic dump confirming lib IS present
       # and the pinned binary reads it, and (b) a generic safety net for
       # missing-files / poisoned-cache cases. Idempotent; no-op on a healthy
-      # home. REMOVE after macos-15-arm64 CI confirms green on 6.0.65 — which
-      # also needs the nanosleep syscall(35) fix in that binary (cyrius issues
-      # 2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync +
-      # 2026-06-04-macos-nanosleep-syscall-35-not-in-esysxlat).
+      # home. REMOVE after macos-15-arm64 CI confirms green on 6.0.65 (cyrius
+      # issue 2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync). The
+      # separate iOS-runner exit-127 fault was a yantra bug (raw syscall(35)),
+      # fixed in src/runtime.cyr — not this step's concern.
       shell: bash
       run: |
         set -euo pipefail

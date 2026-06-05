@@ -15,17 +15,18 @@ now installed via the canonical OS-aware `scripts/install.sh` (serves both the
 Linux and macOS runners). New `scripts/parity-appium.py` (mobile parity, mirrors
 the web `parity-playwright.mjs`); bench-history CSV uploaded as a CI artifact.
 New e2e: `tests/e2e/firefox-smoke.tcyr`, `webkit-smoke.tcyr`. **Pin → 6.0.65**
-(cross-platform floor), which clears the two arm64-macOS syscall-translation
-blockers for the iOS runner: **6.0.63** fixed `GETDENTS64` (`61` untranslated →
-`EBADF`) that made `cyrius lib sync` report `snapshot lib not found` on a
-directory that existed (the files were always on disk — cyrius couldn't
-enumerate the dir on arm64 macOS); **6.0.65** adds `nanosleep` (`syscall(35)`) to
-the aarch64 mach-o `ESYSXLAT` table (+ thread fixes) — yantra's `_yantra_sleep_ms`
-auto-wait poll calls it, and it previously faulted the iOS e2e at runtime
-(`exit 127`). `setup-cyrius` keeps an idempotent "Ensure toolchain complete" step
-as defense-in-depth + diagnostics until the runner confirms green. WebKit caps
-fix: omit `browserName` so WebKitGTK's driver accepts the session (WebKit CI job
-stays non-blocking until confirmed green — architecture 004).
+(cross-platform floor). **6.0.63** fixed the arm64-macOS `GETDENTS64` bug (`61`
+untranslated → `EBADF`) that made `cyrius lib sync` report `snapshot lib not
+found` on a directory that existed (the files were always on disk — cyrius
+couldn't enumerate the dir on arm64 macOS). The iOS-runner `exit 127` fault was a
+**yantra bug, not a toolchain gap**: `_yantra_sleep_ms` called raw `syscall(35)`
+(the x86-Linux nanosleep number; on aarch64 `35` is `unlinkat`, which cyrius
+deliberately does not route as nanosleep) — fixed in `src/runtime.cyr` by using
+`poll(NULL, 0, ms)` (`syscall(7)`, rerouted `7→230` on Darwin), the portable path
+6.0.65's `chrono.sleep_ms` also adopts. `setup-cyrius` keeps an idempotent "Ensure
+toolchain complete" step as defense-in-depth + diagnostics until the runner
+confirms green. WebKit caps fix (omit `browserName` so WebKitGTK's driver accepts
+the session) held green, so the WebKit CI job is now gating (architecture 004).
 
 **0.6.1** — 2026-06-04. **M3 — Android Appium backend now LIVE.**
 `tests/e2e/android-appium-smoke.tcyr` passes **4/4** against a live android-34 /
@@ -78,18 +79,18 @@ backends stubbed pending transport-layer depth.
 - **Cyrius pin**: `6.0.65` (in `cyrius.cyml [package].cyrius`) — carries the
   6.0.59 Darwin `net.cyr` port; ships all platforms (x86_64/aarch64 ×
   linux/macos + windows), so it stays the cross-platform floor. Vendored `lib/`
-  is gitignored and materialized with `cyrius lib sync`. Two arm64-macOS
-  syscall-translation fixes clear the iOS-runner path: **6.0.63** fixed
-  `GETDENTS64` (`61` untranslated → `EBADF`) that made `cyrius lib sync` report
-  `snapshot lib not found` on a populated dir (the earlier `cp`/cache theories
-  were red herrings — cyrius simply couldn't enumerate the directory on arm64
-  macOS); **6.0.65** adds `nanosleep` (`syscall(35)`) to the aarch64 mach-o
-  `ESYSXLAT` table (+ thread fixes), so `_yantra_sleep_ms` (the auto-wait poll)
-  no longer faults the iOS e2e at runtime (`exit 127`). `setup-cyrius`'s
-  always-run "Ensure toolchain complete" step stays as defense-in-depth +
-  diagnostics until the `macos-15-arm64` runner confirms green, then it's removed
-  (cyrius issues `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`
-  + `2026-06-04-macos-nanosleep-syscall-35-not-in-esysxlat`).
+  is gitignored and materialized with `cyrius lib sync`. **6.0.63** fixed the
+  arm64-macOS `GETDENTS64` bug (`61` untranslated → `EBADF`) that made `cyrius lib
+  sync` report `snapshot lib not found` on a populated dir (the earlier `cp`/cache
+  theories were red herrings — cyrius simply couldn't enumerate the directory on
+  arm64 macOS). **6.0.65** makes `chrono.sleep_ms` portable via `poll` (+ thread
+  fixes) — it does **not** route `syscall(35)` as nanosleep (on aarch64 `35` is
+  `unlinkat`), which is why the iOS-runner `exit 127` was fixed in yantra
+  (`src/runtime.cyr` now uses `poll`, `syscall(7)`), not in the toolchain.
+  `setup-cyrius`'s always-run "Ensure toolchain complete" step stays as
+  defense-in-depth + diagnostics until the `macos-15-arm64` runner confirms green,
+  then it's removed (cyrius issue
+  `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`).
 - **Bundled sandhi**: 1.4.1 (includes the `Connection: close` Content-Length
   framing fix that yantra's M2 WebDriver backend depends on).
 - **sigil 3.6.0 requires** `thread.cyr` + `thread_local.cyr` included before
@@ -198,8 +199,8 @@ these modules carry no `include`s (stdlib resolved by the consumer).
 - `tests/e2e/firefox-smoke.tcyr` / `webkit-smoke.tcyr` — M6 web e2e for the
   remaining WebDriver targets. Same flow as the chromedriver smoke via
   `yantra_web_open("firefox")` (geckodriver, headless cap) / `("webkit")`
-  (WebKitWebDriver under Xvfb). CI jobs `E2E (Firefox …)` (gates) /
-  `E2E (WebKit …)` (non-blocking — WebKitGTK driver mismatch, architecture 004).
+  (WebKitWebDriver under Xvfb). CI jobs `E2E (Firefox …)` and `E2E (WebKit …)`
+  both gate (the WebKit omit-`browserName` caps fix held green — architecture 004).
 - `tests/e2e/android-appium-smoke.tcyr` — M3 acceptance E2E. **Passing (4/4)**
   against a live android-34 / google_apis x86_64 emulator (Appium 3.x +
   uiautomator2): open `com.android.settings` → page source (UiAutomator2 XML) →

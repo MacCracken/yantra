@@ -1,6 +1,11 @@
 # 004 — The WebKit CI job is non-blocking (WebKitGTK driver mismatch)
 
-> **Why** the `E2E (WebKit / WebKitWebDriver)` CI job carries
+> **RESOLVED (0.6.2).** The omit-`browserName` caps fix below held green in CI,
+> so the `E2E (WebKit / WebKitWebDriver)` job is now **gating** —
+> `continue-on-error` has been removed. This note is kept for the background on
+> the WebKitGTK browserName mismatch and why the job was temporarily non-blocking.
+
+> **Why** the `E2E (WebKit / WebKitWebDriver)` CI job *carried*
 > `continue-on-error: true` while every other backend's e2e job gates. Recorded
 > here because a non-gating test job is a deliberate, non-obvious choice.
 
@@ -46,14 +51,10 @@ name, and yantra's webkit path is defined to target webkitwebdriver. The change
 only touches the webkit caps; chromedriver / geckodriver / safaridriver keep
 their explicit browserName.
 
-This fix is **reasoned from the spec, not yet verified against a live
-WebKitWebDriver** (none was available locally). So the CI job keeps
-`continue-on-error: true` for now — it still runs and reports its real
-pass/fail, just without reddening the pipeline.
+This fix was **reasoned from the spec** (no live WebKitWebDriver locally), then
+**confirmed green in CI** — the New Session is accepted and the WebKit e2e passes.
 
-## Exit criteria
+## Exit criteria — met (0.6.2)
 
-Remove `continue-on-error` once the job is reliably green in CI (the omit-
-browserName fix is expected to get it there; confirm on the next run). If it
-still fails after that, the remaining likely cause is environmental — Xvfb /
-missing MiniBrowser binary on the runner — not yantra's caps.
+`continue-on-error` has been **removed**; the job gates like the other web e2e
+jobs. The omit-`browserName` fix got it reliably green, as expected.
