@@ -22,9 +22,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     `docs/architecture/004-webkitgtk-ci-is-non-blocking.md`.
   - **Android** via `reactivecircus/android-emulator-runner` (api-34 /
     google_apis / x86_64, KVM) + Appium/UiAutomator2.
-  - **iOS** via `macos-latest` + a runner-matched simulator (the job picks the
-    available device/iOS and runs a device-matched copy of the e2e) +
-    Appium/XCUITest.
+  - **iOS** via `macos-latest` + Appium/XCUITest. The job pins **Xcode 16.4** and
+    targets the newest **iOS 18.x** simulator runtime (a matched Xcode↔runtime
+    generation pair), boots a device from that runtime headless, and runs a
+    device-matched copy of the e2e. Mixing the default Xcode 16.4 with the image's
+    bleeding-edge iOS 26.x runtime is an unsupported generation mismatch that
+    flaked the simulator boot (cited research; runner-images #12777/#13317).
+    *Long-term:* support both the 18.x and 26.x matched pairs as a matrix and move
+    to iOS 26 / Xcode 26 as primary once the hosted runner images stabilize.
 - **`yantra_mobile_set_ios_udid(udid)`** — pin an iOS session to an exact
   simulator UDID (`appium:udid`). When the target sim is already booted, this
   makes Appium attach to *that* instance instead of resolving
