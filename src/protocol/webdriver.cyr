@@ -78,7 +78,14 @@ fn wd_connect_timeout(port, caps_json, total_ms): i64 {
     sandhi_headers_set(h, "Content-Type", "application/json");
     sandhi_headers_set(h, "Accept", "application/json");
     var opts = sandhi_http_options_new();
-    sandhi_http_options_connect_ms(opts, 15000);
+    # connect_ms=0 → sandhi uses a plain BLOCKING connect; connect_ms>0 takes its
+    # non-blocking connect path, which uses Linux-only constants (O_NONBLOCK=2048,
+    # EINPROGRESS=115) that are wrong on Darwin (0x4 / 36), so the in-progress
+    # connect is misread as a failure → spurious SANDHI_ERR_CONNECT on macOS
+    # (sandhi.cyr:1514-1532, 1968). Appium is localhost, so a blocking connect is
+    # instant (or fast-fails ECONNREFUSED) — no connect timeout needed. cyrius
+    # issue: sandhi non-blocking connect is not Darwin-ported.
+    sandhi_http_options_connect_ms(opts, 0);
     sandhi_http_options_read_ms(opts, total_ms);
     sandhi_http_options_total_ms(opts, total_ms);
 
