@@ -22,19 +22,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     `docs/architecture/004-webkitgtk-ci-is-non-blocking.md`.
   - **Android** via `reactivecircus/android-emulator-runner` (api-34 /
     google_apis / x86_64, KVM) + Appium/UiAutomator2.
-  - **iOS** via `macos-latest` + Appium/XCUITest — **non-blocking
-    (`continue-on-error`)** while hosted-runner-specific flakiness is chased; it
-    passes 4/4 on a real macOS arm64 host (`ecb`) and the Appium session is
-    confirmed working on the runner (curl probe → HTTP 200). The job pins
-    **Xcode 16.4** + the newest **iOS 18.x** runtime (a matched Xcode↔runtime
+  - **iOS** via `macos-latest` + Appium/XCUITest — **gating, 4/4 on the hosted
+    runner** (open Settings → page source → tap a native cell → close). The job
+    pins **Xcode 16.4** + the newest **iOS 18.x** runtime (a matched Xcode↔runtime
     generation pair — mixing 16.4 with the image's bleeding-edge iOS 26.x is an
     unsupported mismatch that flaked the boot; cited research, runner-images
     #12777/#13317), boots headless, prebuilds WebDriverAgent
     (`appium driver run xcuitest download-wda`), and uses `appium:noReset` +
-    `usePreinstalledWDA`. The remaining blocker is a cyrius/sandhi Darwin gap
-    (below), tracked in architecture 005. *Long-term:* support both the 18.x and
-    26.x matched pairs as a matrix and move to iOS 26 / Xcode 26 as primary once
-    the hosted runner images stabilize.
+    `usePreinstalledWDA`. Briefly soft-gated while that stack was worked out (see
+    architecture 005). *Long-term:* support both the 18.x and 26.x matched pairs as
+    a matrix and move to iOS 26 / Xcode 26 as primary once the hosted runner images
+    stabilize.
 - **`yantra_mobile_set_ios_udid(udid)`** — pin an iOS session to an exact
   simulator UDID (`appium:udid`). When the target sim is already booted, this
   makes Appium attach to *that* instance instead of resolving

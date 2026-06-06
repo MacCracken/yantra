@@ -1,9 +1,16 @@
 # 005 — The iOS CI job is non-blocking (hosted-runner Appium/sandhi flakiness)
 
-> **Why** the `E2E (iOS / XCUITest)` CI job carries `continue-on-error: true`
-> while the web + Android e2e jobs gate. Recorded here because a non-gating test
-> job is a deliberate, non-obvious choice. Soft-gate precedent: architecture 004
-> (WebKit).
+> **RESOLVED (0.6.2).** The `E2E (iOS / XCUITest)` job is now **gating** —
+> `continue-on-error` has been removed. With the matched Xcode 16.4 / iOS 18.x
+> pair, prebuilt WebDriverAgent, `appium:noReset`, and yantra's `connect_ms=0`
+> blocking-connect workaround, the full e2e passes **4/4** on the hosted runner
+> (open Settings → page source → tap a native cell → close). It was briefly
+> soft-gated (this note's original subject) while that stack was worked out. The
+> background below is kept for the next person who hits hosted-runner iOS pain.
+
+> **Why** the job *carried* `continue-on-error: true` for a few iterations while
+> the GitHub hosted runner's Appium/sandhi flakiness was chased. Soft-gate
+> precedent: architecture 004 (WebKit).
 
 ## What works
 
@@ -57,8 +64,11 @@ correct for any localhost Appium and is a no-op on Linux (Android e2e unaffected
   reports pass/fail) without letting runner-specific Appium/sandhi flakiness
   redden the pipeline.
 
-## Exit criteria
+## Exit criteria — met (0.6.2)
 
-Remove `continue-on-error` once the hosted-runner iOS job is reliably green —
-which needs the cyrius/sandhi Darwin connect/timeout port (the issue above) and
-confirmation that the prebuilt-WDA + matched-pair setup holds across runs.
+`continue-on-error` has been **removed**; the job gates like the other e2e jobs.
+The matched-pair + prebuilt-WDA + `connect_ms=0` stack got it to a genuine 4/4 on
+the hosted runner. The underlying cyrius/sandhi Darwin connect/timeout port
+(issue `2026-06-06-sandhi-nonblocking-connect-not-darwin-ported`) is still worth
+landing — it would let yantra drop the `connect_ms=0` workaround and restore
+proper recv timeouts on macOS — but it is no longer blocking iOS CI.
