@@ -7,34 +7,29 @@
 ## Version
 
 **0.6.2** — 2026-06-04. **M6 — CI device matrix + parity harnesses.** yantra's
-e2e suite now runs against all five backends on every push/PR: Chromium (CDP) +
-chromedriver, **Firefox** (geckodriver), **WebKit** (WebKitWebDriver under Xvfb),
-**Android** (`android-emulator-runner`, api-34/google_apis/x86_64 + Appium), and
-**iOS** (`macos-latest` + a runner-matched simulator + Appium). `setup-cyrius` is
-now installed via the canonical OS-aware `scripts/install.sh` (serves both the
-Linux and macOS runners). New `scripts/parity-appium.py` (mobile parity, mirrors
-the web `parity-playwright.mjs`); bench-history CSV uploaded as a CI artifact.
-New e2e: `tests/e2e/firefox-smoke.tcyr`, `webkit-smoke.tcyr`. **Pin → 6.0.66**
-(cross-platform floor). **6.0.63** fixed the arm64-macOS `GETDENTS64` bug (`61`
-untranslated → `EBADF`) that made `cyrius lib sync` report `snapshot lib not
-found` on a directory that existed (the files were always on disk — cyrius
-couldn't enumerate the dir on arm64 macOS). The iOS-runner `exit 127` was a
-**cyrius `cbt` bug, not a yantra bug**: `cyrius test` ran the compiled arm64
-binary through `/usr/bin/qemu-aarch64` (absent on a native Apple-Silicon host →
-execve ENOENT → `exit 127`) and, unlike `cyrius build`, never ad-hoc codesigned
-the tmp binary (AMFI would SIGKILL it once qemu is bypassed). **Fixed in 6.0.66**
-(qemu gated to non-macOS; `_macho_codesign` hoisted into every run path) — cyrius
-issue `2026-06-05-macos-cyrius-test-run-binary-qemu-aarch64-unsigned`; **confirmed
-on the runner** (the iOS test binary now runs natively). The iOS e2e itself now
-fails at `yantra_mobile_open("ios")` session-create on the hosted runner (passes
-4/4 on `ecb`) — a real XCUITest/WebDriverAgent issue under diagnosis; CI now dumps
-the Appium debug log on failure. Separately, a real yantra correctness
-fix landed: `_yantra_sleep_ms` called raw `syscall(35)` (x86 nanosleep; on
-aarch64-macho `35` is `unlinkat`), so the auto-wait never slept on macOS — now
-uses `poll` (`syscall(7)`). `setup-cyrius` keeps an idempotent "Ensure toolchain
-complete" step as defense-in-depth + diagnostics until the runner confirms green.
-WebKit caps fix (omit `browserName`) held green on the Linux runner, so the WebKit
-CI job is now gating (architecture 004).
+e2e suite **gates green against all five backends on every push/PR**: Chromium
+(CDP) + chromedriver, **Firefox** (geckodriver), **WebKit** (WebKitWebDriver under
+Xvfb), **Android** (`android-emulator-runner`, api-34/google_apis/x86_64 + Appium),
+and **iOS** (`macos-latest` + Appium/XCUITest, **4/4** on the hosted runner). New
+`scripts/parity-appium.py` (mobile parity, mirrors the web `parity-playwright.mjs`);
+bench-history CSV uploaded as a CI artifact. New e2e: `tests/e2e/firefox-smoke.tcyr`,
+`webkit-smoke.tcyr`. **Pin → 6.0.66** (cross-platform floor); `setup-cyrius`
+installs via the canonical OS-aware `scripts/install.sh`.
+
+The macOS/iOS path was a deep chain of toolchain + Appium fixes (all now resolved):
+**6.0.63** fixed the arm64-macOS `GETDENTS64` dir-walk bug (broke `cyrius lib
+sync`); **6.0.66** fixed two `cbt` bugs behind the iOS-runner `exit 127` (`cyrius
+test` routed the arm64 binary through an absent `/usr/bin/qemu-aarch64`, and never
+ad-hoc codesigned it). yantra-side: `_yantra_sleep_ms` now uses `poll` not raw
+`syscall(35)` (which is `unlinkat`, not nanosleep, on aarch64-macho); and
+`wd_connect_timeout` forces sandhi's **blocking** connect (`connect_ms=0`, no
+`total_ms`) to dodge sandhi's Linux-only non-blocking-connect constants on Darwin
+(cyrius issue `2026-06-06-sandhi-nonblocking-connect-not-darwin-ported`). The iOS
+CI job pins **Xcode 16.4 + iOS 18.x** (matched generation), boots headless,
+prebuilds WebDriverAgent (`download-wda`), and uses `appium:noReset` +
+`usePreinstalledWDA` (new yantra verbs `set_ios_udid`/`set_ios_headless`/
+`set_ios_wda_launch_timeout`/`set_no_reset`/`set_ios_prebuilt_wda`). It was briefly
+soft-gated, now gating (architecture 005). WebKit is gating too (architecture 004).
 
 **0.6.1** — 2026-06-04. **M3 — Android Appium backend now LIVE.**
 `tests/e2e/android-appium-smoke.tcyr` passes **4/4** against a live android-34 /
@@ -95,11 +90,14 @@ backends stubbed pending transport-layer depth.
   fixes). The iOS-runner `exit 127` was a separate cyrius `cbt` bug (`cyrius test`
   ran the compiled arm64 binary via `/usr/bin/qemu-aarch64`, absent on a native
   Apple-Silicon host, and never ad-hoc codesigned it), **fixed in 6.0.66** (cyrius
-  issue `2026-06-05-macos-cyrius-test-run-binary-qemu-aarch64-unsigned`) — awaiting
-  CI confirmation on the runner. `setup-cyrius`'s
-  always-run "Ensure toolchain complete" step stays as defense-in-depth +
-  diagnostics until the `macos-15-arm64` runner confirms green, then it's removed
-  (cyrius issue `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`).
+  issue `2026-06-05-macos-cyrius-test-run-binary-qemu-aarch64-unsigned`) —
+  confirmed: iOS CI is now 4/4 green. `setup-cyrius` installs solely via the
+  canonical `scripts/install.sh`; the temporary "Ensure toolchain complete"
+  repair/diagnostic step was removed once macOS CI went green (lib-snapshot cyrius
+  issue archived). One known macOS gap remains, worked around not blocking:
+  sandhi's non-blocking connect + `SO_RCVTIMEO` use Linux-only socket constants
+  (cyrius issue `2026-06-06-sandhi-nonblocking-connect-not-darwin-ported`); yantra
+  uses a blocking-connect workaround.
 - **Bundled sandhi**: 1.4.1 (includes the `Connection: close` Content-Length
   framing fix that yantra's M2 WebDriver backend depends on).
 - **sigil 3.6.0 requires** `thread.cyr` + `thread_local.cyr` included before
@@ -215,10 +213,12 @@ these modules carry no `include`s (stdlib resolved by the consumer).
   uiautomator2): open `com.android.settings` → page source (UiAutomator2 XML) →
   tap first clickable element → close. CI job `E2E (Android …)` via
   `reactivecircus/android-emulator-runner` (KVM).
-- `tests/e2e/ios-appium-smoke.tcyr` — M4 acceptance E2E. **4/4** vs an iOS 26.5
-  simulator locally (open Settings → source → tap cell → close). CI job
-  `E2E (iOS …)` on `macos-latest` runs a runner-matched copy (the committed file
-  targets the maintainer's local sim).
+- `tests/e2e/ios-appium-smoke.tcyr` — M4 acceptance E2E. **4/4** both locally
+  (iOS 26.5 sim on `ecb`) and on the **hosted `macos-latest` runner** — open
+  Settings → source → tap cell → close. The CI job (gating) runs a runner-matched
+  copy: it pins Xcode 16.4 + an iOS 18.x sim, prebuilds WDA, and injects
+  `set_ios_udid`/`set_ios_headless`/`set_no_reset`/`set_ios_prebuilt_wda` (the
+  committed file targets the maintainer's local sim). See architecture 005.
 - `programs/benchmarks.cyr` — incumbent-parity benchmark program (yantra vs
   Playwright/Appium). Scaffold + planned matrix; runs primitive benches today.
 - `scripts/bench-history.sh` → `bench-history.csv` — AGNOS bench-history

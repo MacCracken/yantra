@@ -120,15 +120,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     `_macho_codesign` helper (previously only `cyrius build` signed, so AMFI would
     SIGKILL the unsigned test binary). cyrius issue
     `2026-06-05-macos-cyrius-test-run-binary-qemu-aarch64-unsigned`.
-- **`setup-cyrius` hardened** as defense-in-depth: cache key bumped, the Install
-  step tolerates a non-zero exit, and an **idempotent, always-run "Ensure
-  toolchain complete"** step verifies/repairs bin (+ ad-hoc codesign on macOS),
-  lib, the `~/.cyrius` symlinks, and `current` from the release tarball. It
-  can't fix the dir-walk bug itself (that's the 6.0.63 binary's job) but gives a
-  conclusive diagnostic dump and covers generic missing-files / poisoned-cache
-  cases. No-op on a healthy home; remove once `macos-15-arm64` CI is confirmed
-  green on 6.0.66 (cyrius issue
-  `2026-06-04-macos-install-lib-snapshot-missing-breaks-lib-sync`).
 - **`setup-cyrius` now installs via the canonical `scripts/install.sh`** so the
   same action serves the Linux (web/Android) and macOS (iOS) jobs. That
   installer is itself OS/arch-aware — it detects the platform, downloads the
