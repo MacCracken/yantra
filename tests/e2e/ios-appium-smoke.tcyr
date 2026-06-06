@@ -43,6 +43,12 @@ fn main() {
 
     # Drive the Settings app — present on every iOS image.
     var s = yantra_mobile_open("ios", "com.apple.Preferences");
+    if (s == 0) {
+        var e = yantra_last_error_str();
+        syscall(1, 1, "OPEN FAIL: ", 11);
+        syscall(1, 1, e, strlen(e));
+        syscall(1, 1, "\n", 1);
+    }
     assert(s != 0, "open ios Settings session (XCUITest)");
     if (s == 0) { return assert_summary(); }
 

@@ -50,6 +50,18 @@ fn wd_connect(port, caps_json): i64 {
     return wd;
 }
 
+# Diagnostics for the last wd_connect_timeout 0-return, so the failure is
+# explainable: a transport/timeout (stage 1/2) reads very differently from a
+# bad HTTP status (3) or a body/parse miss (4/5). stage: 0=ok, 1=resp null
+# (connect/transport), 2=sandhi err_kind, 3=status out of 2xx, 4=body null,
+# 5=no sessionId in body.
+var _wd_dbg_stage = 0;
+var _wd_dbg_errkind = 0;
+var _wd_dbg_status = 0;
+fn wd_last_fail_stage(): i64 { return _wd_dbg_stage; }
+fn wd_last_fail_errkind(): i64 { return _wd_dbg_errkind; }
+fn wd_last_fail_status(): i64 { return _wd_dbg_status; }
+
 # Open a session with an explicit (long) timeout. Mobile session creation —
 # Appium installing the UiAutomator2 server / building WebDriverAgent — can take
 # 60s+, which blows past sandhi's default RPC timeout (~30s). We POST /session
@@ -70,17 +82,22 @@ fn wd_connect_timeout(port, caps_json, total_ms): i64 {
     sandhi_http_options_read_ms(opts, total_ms);
     sandhi_http_options_total_ms(opts, total_ms);
 
+    _wd_dbg_stage = 0;
+    _wd_dbg_errkind = 0;
+    _wd_dbg_status = 0;
     var resp = sandhi_http_post_opts(url, h, caps_json, strlen(caps_json), opts);
-    if (resp == 0) { return 0; }
-    if (sandhi_http_err_kind(resp) != 0) { return 0; }
+    if (resp == 0) { _wd_dbg_stage = 1; return 0; }
+    var ek = sandhi_http_err_kind(resp);
+    if (ek != 0) { _wd_dbg_stage = 2; _wd_dbg_errkind = ek; return 0; }
     var st = sandhi_http_status(resp);
-    if (st < 200) { return 0; }
-    if (st >= 300) { return 0; }
+    _wd_dbg_status = st;
+    if (st < 200) { _wd_dbg_stage = 3; return 0; }
+    if (st >= 300) { _wd_dbg_stage = 3; return 0; }
     var body = sandhi_http_body(resp);
-    if (body == 0) { return 0; }
+    if (body == 0) { _wd_dbg_stage = 4; return 0; }
     var sid = sandhi_json_get_string(body, "value.sessionId");
     if (sid == 0) { sid = sandhi_json_get_string(body, "sessionId"); }
-    if (sid == 0) { return 0; }
+    if (sid == 0) { _wd_dbg_stage = 5; return 0; }
     return wd_handle_new(base, sid);
 }
 

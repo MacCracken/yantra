@@ -165,7 +165,21 @@ fn yantra_mobile_open(platform, app_id): i64 {
         else { _yantra_backoff(attempt); attempt = attempt + 1; }
     }
     if (wd == 0) {
-        _yantra_set_err(YANTRA_ERR_SESSION, "Appium session create failed");
+        # Detailed reason so a 0-return is diagnosable (transport/timeout vs HTTP
+        # status vs parse). stage: 1=resp null, 2=err_kind, 3=status, 4=body null,
+        # 5=no sessionId. See wd_connect_timeout.
+        var msg = alloc(128);
+        var mo = _cdp_b_cstr(msg, 0, "Appium session create failed (stage=");
+        mo = _cdp_b_int(msg, mo, wd_last_fail_stage());
+        mo = _cdp_b_cstr(msg, mo, " errkind=");
+        mo = _cdp_b_int(msg, mo, wd_last_fail_errkind());
+        mo = _cdp_b_cstr(msg, mo, "/");
+        mo = _cdp_b_cstr(msg, mo, sandhi_err_kind_name(wd_last_fail_errkind()));
+        mo = _cdp_b_cstr(msg, mo, " status=");
+        mo = _cdp_b_int(msg, mo, wd_last_fail_status());
+        mo = _cdp_b_cstr(msg, mo, ")");
+        store8(msg + mo, 0);
+        _yantra_set_err(YANTRA_ERR_SESSION, msg);
         _yantra_span_exit();
         return 0;
     }
