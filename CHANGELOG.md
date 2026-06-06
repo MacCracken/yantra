@@ -22,14 +22,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     `docs/architecture/004-webkitgtk-ci-is-non-blocking.md`.
   - **Android** via `reactivecircus/android-emulator-runner` (api-34 /
     google_apis / x86_64, KVM) + Appium/UiAutomator2.
-  - **iOS** via `macos-latest` + Appium/XCUITest. The job pins **Xcode 16.4** and
-    targets the newest **iOS 18.x** simulator runtime (a matched Xcode↔runtime
-    generation pair), boots a device from that runtime headless, and runs a
-    device-matched copy of the e2e. Mixing the default Xcode 16.4 with the image's
-    bleeding-edge iOS 26.x runtime is an unsupported generation mismatch that
-    flaked the simulator boot (cited research; runner-images #12777/#13317).
-    *Long-term:* support both the 18.x and 26.x matched pairs as a matrix and move
-    to iOS 26 / Xcode 26 as primary once the hosted runner images stabilize.
+  - **iOS** via `macos-latest` + Appium/XCUITest — **non-blocking
+    (`continue-on-error`)** while hosted-runner-specific flakiness is chased; it
+    passes 4/4 on a real macOS arm64 host (`ecb`) and the Appium session is
+    confirmed working on the runner (curl probe → HTTP 200). The job pins
+    **Xcode 16.4** + the newest **iOS 18.x** runtime (a matched Xcode↔runtime
+    generation pair — mixing 16.4 with the image's bleeding-edge iOS 26.x is an
+    unsupported mismatch that flaked the boot; cited research, runner-images
+    #12777/#13317), boots headless, prebuilds WebDriverAgent
+    (`appium driver run xcuitest download-wda`), and uses `appium:noReset` +
+    `usePreinstalledWDA`. The remaining blocker is a cyrius/sandhi Darwin gap
+    (below), tracked in architecture 005. *Long-term:* support both the 18.x and
+    26.x matched pairs as a matrix and move to iOS 26 / Xcode 26 as primary once
+    the hosted runner images stabilize.
 - **`yantra_mobile_set_ios_udid(udid)`** — pin an iOS session to an exact
   simulator UDID (`appium:udid`). When the target sim is already booted, this
   makes Appium attach to *that* instance instead of resolving
@@ -65,6 +70,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   build artifact.
 
 ### Fixed
+- **Appium connect on macOS — force sandhi's blocking connect.** yantra's
+  `POST /session` failed on hosted macOS with a spurious `SANDHI_ERR_CONNECT`:
+  sandhi's *non-blocking* connect (taken whenever the effective connect timeout
+  is > 0) uses Linux-only socket constants (`O_NONBLOCK=2048`/`EINPROGRESS=115`;
+  Darwin is `0x4`/`36`), so a connect-in-progress is misread as a failure.
+  `wd_connect_timeout` now sets `connect_ms=0` **and** leaves `total_ms` unset
+  (otherwise sandhi's clamp re-raises the 0 to the deadline and re-arms the broken
+  path), routing through the Darwin-ported `net.cyr sock_connect`. No-op on Linux.
+  Underlying fix tracked in cyrius issue
+  `2026-06-06-sandhi-nonblocking-connect-not-darwin-ported`; see architecture 005.
 - **Auto-wait sleep was a no-op on macOS — now portable.** `_yantra_sleep_ms`
   (`src/runtime.cyr`, fired by every auto-wait poll and retry backoff) was calling
   raw `syscall(35)` — the **x86-Linux** `nanosleep` number. On aarch64-macho `35`

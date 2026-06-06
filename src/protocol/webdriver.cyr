@@ -78,16 +78,20 @@ fn wd_connect_timeout(port, caps_json, total_ms): i64 {
     sandhi_headers_set(h, "Content-Type", "application/json");
     sandhi_headers_set(h, "Accept", "application/json");
     var opts = sandhi_http_options_new();
-    # connect_ms=0 → sandhi uses a plain BLOCKING connect; connect_ms>0 takes its
-    # non-blocking connect path, which uses Linux-only constants (O_NONBLOCK=2048,
-    # EINPROGRESS=115) that are wrong on Darwin (0x4 / 36), so the in-progress
-    # connect is misread as a failure → spurious SANDHI_ERR_CONNECT on macOS
-    # (sandhi.cyr:1514-1532, 1968). Appium is localhost, so a blocking connect is
-    # instant (or fast-fails ECONNREFUSED) — no connect timeout needed. cyrius
-    # issue: sandhi non-blocking connect is not Darwin-ported.
+    # Force sandhi's BLOCKING connect, which goes through the Darwin-ported
+    # net.cyr `sock_connect`. Its non-blocking connect path (taken whenever the
+    # effective connect timeout is > 0) uses Linux-only constants (O_NONBLOCK=2048,
+    # EINPROGRESS=115; Darwin is 0x4 / 36) and misreads a connect-in-progress as a
+    # failure → spurious SANDHI_ERR_CONNECT on macOS (sandhi.cyr:1514-1532,1996).
+    # NOTE: setting connect_ms=0 is NOT enough on its own — `_sandhi_http_clamp_ms`
+    # clamps a 0 connect timeout UP to the remaining total_ms deadline, re-arming
+    # the non-blocking path. So we also leave total_ms UNSET (no deadline) so the
+    # connect timeout stays 0 → blocking connect. read_ms still bounds recv on
+    # Linux; on macOS SO_RCVTIMEO is likewise Linux-only (unset → blocking recv,
+    # fine — Appium is localhost and responds). cyrius issue
+    # 2026-06-06-sandhi-nonblocking-connect-not-darwin-ported.
     sandhi_http_options_connect_ms(opts, 0);
     sandhi_http_options_read_ms(opts, total_ms);
-    sandhi_http_options_total_ms(opts, total_ms);
 
     _wd_dbg_stage = 0;
     _wd_dbg_errkind = 0;
