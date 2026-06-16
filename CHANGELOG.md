@@ -21,16 +21,36 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - **sigil 3.6.4 → 3.7.13** — HTTPS cert verification (still forward-looking;
     yantra does not include sigil until M8).
   - **sakshi 2.2.6 → 2.3.0** — tracing spans (`yantra_trace_enable`).
+- **`base64.cyr` and `json.cyr` folded into `bayan.cyr`** (the new bundled
+  data-codec lib, v1.0.1 — also carries csv/u128/bigint/toml/cyml). yantra used
+  both (base64 for the CDP WebSocket handshake, json for the CDP/WebDriver value
+  tree). Every `include "lib/base64.cyr"` / `include "lib/json.cyr"` (smoke
+  program, benchmark program, M5 suite, all six e2e tests) now resolves through
+  a single `include "lib/bayan.cyr"`; `[deps] stdlib` swaps `base64` + `json`
+  for `bayan`. bayan re-exports the unprefixed `base64_encode` / `json_v_*`
+  names, so no call sites changed. **This was the break behind the CI
+  `cannot open include file: lib/base64.cyr` failure** — the old snapshot's
+  `base64.cyr`/`json.cyr` were stale leftovers locally (`cyrius lib sync` copies
+  in but does not prune removed files); a fresh CI sync had neither.
 
 ### Fixed
 - **`yantra_version()` reported `0.6.0`** — the constant in `src/main.cyr` was
   never bumped through 0.6.1/0.6.2; now returns `0.6.3`.
+- **`programs/benchmarks.cyr` no longer linked** — its include chain predated M5
+  (0.6.0), so it pulled `src/web.cyr` without `src/runtime.cyr` (error codes) or
+  `src/protocol/webdriver.cyr` (the `sandhi_wd_*` path web.cyr became
+  transport-aware over), failing on `undefined variable 'YANTRA_ERR_CONNECT'`.
+  Latent because this scaffold program isn't built in CI. Its include block now
+  mirrors `programs/smoke.cyr`'s full stdlib + src chain; builds clean.
 
 ### Verified
-- Smoke build links the full `[lib]` chain; unit **2/2**, M5 offline **14/14**;
+- Against a **fresh** `lib/` (wiped + re-synced, matching CI's clean sync —
+  not the stale local snapshot): smoke build + benchmark build link the full
+  chain; unit **2/2**, M5 offline **14/14**; all **six e2e tests** compile and
+  link clean on the new `bayan` include path (they fail only at the live-connect
+  step offline, as expected — they gate in CI against live targets);
   `cyrius lint` 0 warnings; `cyrius fmt --check` clean; `cyrius distlib` emits
-  `dist/yantra.cyr` v0.6.3. Live-device e2e (web/Android/iOS) not re-run here —
-  they need live targets and gate in CI on the new pin.
+  `dist/yantra.cyr` v0.6.3.
 
 ## [0.6.2] - 2026-06-04
 

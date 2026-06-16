@@ -11,9 +11,15 @@ yantra source changes; the public API and all five backends are unchanged. The
 bundled stdlib libs yantra rides on advanced with the snapshot: **sandhi
 1.4.1 → 1.6.2** (WebDriver/Appium RPC), **sigil 3.6.4 → 3.7.13** (cert
 verification, still M8-forward-looking), **sakshi 2.2.6 → 2.3.0** (tracing).
-Verified green on the new pin: smoke build, unit 2/2, M5 14/14, lint 0, fmt
-clean, `distlib` → `dist/yantra.cyr` v0.6.3. Live-device e2e gates in CI on the
-new pin (needs live targets; not re-run locally).
+**`base64.cyr` + `json.cyr` were folded into the new `bayan.cyr` bundle (v1.0.1;
+also csv/u128/bigint/toml/cyml)** — every include + the `[deps] stdlib` list now
+go through `bayan` (it re-exports the unprefixed `base64_encode`/`json_v_*`, so
+no call sites changed). That removal is what broke CI (`cannot open include
+file: lib/base64.cyr`): a fresh `cyrius lib sync` no longer ships those files,
+and `lib sync` doesn't prune stale local copies that had masked it. Verified on
+the new pin against a **freshly re-synced `lib/`**: smoke + benchmark builds,
+unit 2/2, M5 14/14, all six e2e compile/link clean (live-connect only in CI),
+lint 0, fmt clean, `distlib` → `dist/yantra.cyr` v0.6.3.
 
 **0.6.2** — 2026-06-04. **M6 — CI device matrix + parity harnesses.** yantra's
 e2e suite **gates green against all five backends on every push/PR**: Chromium
@@ -159,9 +165,12 @@ An earlier revision of this section wrongly claimed M2–M4 were blocked on
   Response via `sandhi_http_status/body/body_len/headers/err_kind`. This is
   what **M2 (WebDriver)** and **M3/M4 (Appium)** ride on — POST + `Content-Type:
   application/json` + HTTPS are all present today.
-- **`lib/json.cyr`** — tagged value-tree (`json_v_parse`, `json_v_obj_get`,
-  `json_v_arr_*`, `json_v_str/int/bool`): full nesting/arrays/typed values.
-  Carries WebDriver/Appium request and response bodies cleanly.
+- **`lib/bayan.cyr` (v1.0.1)** — bundled data-codec lib; carries the tagged
+  JSON value-tree (`json_v_parse`, `json_v_obj_get`, `json_v_arr_*`,
+  `json_v_str/int/bool` — full nesting/arrays/typed values, carries
+  WebDriver/Appium bodies cleanly) **and** base64 (`base64_encode`, used by the
+  CDP WebSocket handshake), plus csv/u128/bigint/toml/cyml. As of the 6.2.x
+  snapshot it subsumes the former standalone `json.cyr` and `base64.cyr`.
 - **`lib/ws.cyr`** — RFC 6455 client (text/binary/ping/pong/close). The M1
   Chromium/CDP transport. No gap.
 - **`lib/http.cyr`** — the *minimal* GET-only client. Not used by yantra; the
@@ -276,6 +285,8 @@ Declared in `cyrius.cyml`:
   included by yantra — enters at M8)
 - **sandhi** 1.6.2 — HTTP/1.1+2 + WebDriver/Appium RPC layer (bundled in
   snapshot)
+- **bayan** 1.0.1 — data-codec bundle (base64 + json + csv/u128/bigint/toml/
+  cyml); subsumes the former `base64.cyr` + `json.cyr` (bundled in snapshot)
 
 ## Consumers
 

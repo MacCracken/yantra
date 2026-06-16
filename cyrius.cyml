@@ -81,8 +81,8 @@ stdlib = [
     # manifest documents the real graph.
     "net",      # sockets — M1 CDP discovery GET + transport
     "ws",       # M1 Chromium/CDP
-    "base64",   # ws handshake
-    "json",     # CDP JSON value tree
+    "bayan",    # base64 (ws handshake) + json (CDP/WD value tree) — base64.cyr
+                # and json.cyr were folded into bayan in 6.2.x
     "sandhi",   # HTTP/1.1+2 + WebDriver/Appium RPC — M2 (WebDriver) + M3/M4 (Appium)
     "tls",      # sandhi's HTTPS path (libssl fdlopen bridge)
     "dynlib",   # tls bridge

@@ -23,15 +23,30 @@
 # Without a live browser it prints the planned matrix and exits 0 so the build
 # stays green in CI / the link-check path.
 
+# stdlib transports in dependency order — same chain as programs/smoke.cyr.
+# src/web.cyr is transport-aware (CDP + WebDriver) and rides runtime.cyr's
+# error codes + webdriver.cyr's sandhi_wd_* path, so the full chain is needed
+# even though this program exercises only the CDP operations.
 include "lib/net.cyr"
-include "lib/base64.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/bayan.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
 include "lib/ws.cyr"
-include "lib/http.cyr"
-include "lib/json.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
 include "lib/bench.cyr"
+
+# yantra library modules — same order as cyrius.cyml [lib] modules.
 include "src/main.cyr"
+include "src/runtime.cyr"
 include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
 include "src/web.cyr"
+include "src/mobile.cyr"
 
 # A self-contained page (no quotes/spaces — no percent-encoding needed).
 var _BDATA = "data:text/html,<input id=n><input type=checkbox id=c>";
