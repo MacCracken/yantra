@@ -4,6 +4,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-06-15
+
+> **Toolchain → 6.2.12; the M8 F-2 sandhi blocker is resolved.** Bundled sandhi
+> 1.6.3 adds the endpoint-keyed default TLS-policy registry the per-action cert
+> pinning needed. No yantra source/API changes — pin bump + bundled-lib advance.
+
+### Changed
+- **Toolchain pin → 6.2.12** (from 6.2.11). Bundled libs advance with the
+  snapshot: **sandhi 1.6.2 → 1.6.3**, **sigil 3.7.13 → 3.7.14**. Build, unit, M5,
+  M8, lint, fmt, and distlib all green on the new pin.
+- **F-2 sandhi blocker resolved.** sandhi 1.6.3 adds an endpoint-keyed default
+  TLS-policy registry — `sandhi_rpc_set_default_tls_policy(base_url, policy)`
+  (+ get/clear) — so the per-action `sandhi_wd_*` / `sandhi_ap_*` calls now carry
+  a registered pin/mTLS/trust-store policy, not just the session-create POST.
+  Closes (and archives) sandhi issue
+  `2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy`. M8 F-2's remaining work is now
+  purely yantra-side: remote-host support + registering the sigil-verified pin on
+  the connect path (localhost stays plain HTTP, unaffected).
+
 ## [0.8.0] - 2026-06-15
 
 > **M8 — security hardening (first pass).** Audit filed; the CDP wire escaper is

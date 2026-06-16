@@ -5,14 +5,14 @@ description = "Sovereign UI automation — browser + mobile, as a Cyrius library
 license = "GPL-3.0-only"
 repository = "https://github.com/MacCracken/yantra"
 language = "cyrius"
-cyrius = "6.2.11"
+cyrius = "6.2.12"
 
 # yantra is a **library** consumed by `.tcyr` test files — it is not a
 # test framework. `cyrius test` stays the runner. yantra adds the verbs:
 # `yantra_web_open`, `yantra_navigate`, `yantra_click`, `yantra_mobile_open`,
 # etc. — so a `.tcyr` file can drive a browser or a device natively.
 #
-# Transport dep chain (Cyrius stdlib, verified against the 6.2.11 snapshot):
+# Transport dep chain (Cyrius stdlib, verified against the 6.2.12 snapshot):
 #   ws.cyr     — RFC 6455 WebSocket client (full framing — CDP-ready). The
 #                only transport the M1 Chromium/CDP backend needs.
 #   sandhi     — the stdlib HTTP/1.1+2 + WebDriver/Appium RPC layer. M2
@@ -20,7 +20,8 @@ cyrius = "6.2.11"
 #                android/ios) ride `sandhi_wd_*` / `sandhi_ap_*` on it. sandhi
 #                1.4.1 fixed the `Connection: close` close-path drain that had
 #                briefly forced an in-tree client (yantra `docs/architecture/002`,
-#                resolved 0.4.0); now bundled at 1.6.2 in the 6.2.11 snapshot.
+#                resolved 0.4.0); now bundled at 1.6.3 in the 6.2.12 snapshot
+#                (1.6.3 adds the endpoint-keyed default TLS-policy registry).
 #                HTTPS via the libssl bridge (tls.cyr) when remote grids land;
 #                localhost drivers are plain HTTP.
 #   http.cyr   — the MINIMAL stdlib HTTP client (GET-only). Not used by yantra.
@@ -30,7 +31,7 @@ cyrius = "6.2.11"
 #                `json_v_obj_get`, `json_v_arr_*`, `json_v_str/int/bool`) —
 #                full nesting/arrays/typed values; carries WebDriver/Appium
 #                JSON cleanly.
-#   sakshi (2.3.0) / sigil (3.7.13) — bundled in the stdlib snapshot.
+#   sakshi (2.3.0) / sigil (3.7.14) — bundled in the stdlib snapshot.
 #   NOTE: sigil requires `thread.cyr` + `thread_local.cyr` included
 #   before it — see `[deps] stdlib` below. yantra now includes sigil
 #   (M8) via `src/security.cyr` for sigil-verified cert pins.

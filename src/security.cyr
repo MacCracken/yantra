@@ -16,11 +16,12 @@
 # they return 0 and set YANTRA_ERR_VERIFY. Requires sigil in the consumer's
 # `[deps] stdlib`.
 #
-# NOTE (audit F-2): policy not yet applied per-action — see sandhi issue 2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy.
-# sandhi's `sandhi_wd_*` / `sandhi_ap_*` RPC takes only a base_url, no TLS
-# policy, so end-to-end wiring lands once sandhi grows policy-carrying RPC
-# variants. The verification gate is correct and tested now (tests/m8.tcyr);
-# see docs/audit/2026-06-15-audit.md F-2.
+# Apply the returned policy to live driver traffic with sandhi's endpoint-keyed
+# registry: sandhi_rpc_set_default_tls_policy(base_url, policy) — added in sandhi
+# 1.6.3 (cyrius 6.2.12), which resolved the per-action gap. Plain-HTTP/localhost
+# endpoints ignore the policy, so wiring it through yantra also needs remote-host
+# support (host is still hardcoded to 127.0.0.1). Verification gate is tested
+# now (tests/m8.tcyr); see docs/audit/2026-06-15-audit.md F-2.
 
 # Verify an Ed25519-signed SPKI cert-pin; return a sandhi pinned TLS policy or 0.
 fn yantra_tls_pin_verify_ed25519(spki_hex, ed_sig, ed_pk): i64 {

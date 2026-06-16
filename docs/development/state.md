@@ -6,6 +6,15 @@
 
 ## Version
 
+**0.8.1** — 2026-06-15. **Toolchain → Cyrius 6.2.12** (from 6.2.11); bundled
+**sandhi 1.6.2 → 1.6.3**, **sigil 3.7.13 → 3.7.14**. sandhi 1.6.3 adds an
+endpoint-keyed default TLS-policy registry (`sandhi_rpc_set_default_tls_policy`),
+**resolving the M8 F-2 sandhi blocker** (per-action `sandhi_wd_*`/`sandhi_ap_*`
+calls now carry a registered pin/mTLS/trust-store policy); the filed sandhi issue
+is archived. M8 F-2's remaining work is now purely yantra-side: remote-host
+support + registering the sigil-verified pin on the connect path. No yantra
+source/API changes. All green on the new pin (smoke/unit/m5/m8/lint/fmt/distlib).
+
 **0.8.0** — 2026-06-15. **M8 — security hardening (first pass).** Audit filed
 (`docs/audit/2026-06-15-audit.md`): no-shell-out + error-surface verified clean.
 **F-1 fixed** — the CDP JSON escaper now escapes the full C0 control range
@@ -117,8 +126,9 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.2.11` (in `cyrius.cyml [package].cyrius`) — refreshed off
-  the 6.0.x line in 0.6.3. Carries forward the 6.0.59 Darwin `net.cyr` port and
+- **Cyrius pin**: `6.2.12` (in `cyrius.cyml [package].cyrius`) — refreshed off
+  the 6.0.x line in 0.6.3 (6.2.11), bumped to 6.2.12 in 0.8.1. Carries forward
+  the 6.0.59 Darwin `net.cyr` port and
   the 6.0.66 `cbt` macOS fixes; ships all platforms (x86_64/aarch64 ×
   linux/macos + windows), so it stays the cross-platform floor. Build/test/lint/
   fmt/distlib verified green on it. Vendored `lib/` is gitignored and
@@ -142,10 +152,11 @@ backends stubbed pending transport-layer depth.
   6.2.10's `net_connect_nb`). yantra's blocking-connect workaround in
   `wd_connect_timeout` was dropped post-0.6.3 (proper connect/recv timeouts
   restored — see Unreleased). No known toolchain gaps remain.
-- **Bundled sandhi**: 1.6.2 (from 1.4.1 at the 6.2.11 refresh; carries the
-  `Connection: close` Content-Length framing fix that yantra's M2 WebDriver
-  backend depends on).
-- **sigil 3.7.13 requires** `thread.cyr` + `thread_local.cyr` included before
+- **Bundled sandhi**: 1.6.3 (carries the `Connection: close` Content-Length
+  framing fix the M2 WebDriver backend depends on, plus the 1.6.3 endpoint-keyed
+  default TLS-policy registry — `sandhi_rpc_set_default_tls_policy` — that
+  resolved the M8 F-2 per-action cert-pin gap).
+- **sigil 3.7.14 requires** `thread.cyr` + `thread_local.cyr` included before
   it. Both are listed in `cyrius.cyml [deps] stdlib`. yantra **now includes
   sigil** (M8) via `src/security.cyr` for the sigil-verified cert-pin gate — so
   this ordering is a current constraint (the `[lib]` bundle and `programs/smoke.cyr`
@@ -220,8 +231,9 @@ WebDriver), M3 (Android Appium), M4 (iOS XCUITest).
   config, tracing-span helpers, shared sleep. **Live (M5).**
 - `src/security.cyr` — **M8 transport security**: sigil-verified cert pins
   (`yantra_tls_pin_verify_ed25519`/`_hybrid` → `sandhi_tls_policy_new_pinned`).
-  Verification gate live + tested; end-to-end application gated on a sandhi RPC
-  TLS-policy hook (sandhi issue `2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy`).
+  Verification gate live + tested. The sandhi-side application hook landed in
+  1.6.3 (`sandhi_rpc_set_default_tls_policy`, issue archived); remaining is
+  yantra-side remote-host support + registering the verified pin.
 - `src/protocol/cdp.cyr` — Chrome DevTools Protocol over `ws.cyr`: discovery
   GET, command build/escape, response matching, eval/navigate/connect/close.
   **Live (M1).**
@@ -318,11 +330,12 @@ Declared in `cyrius.cyml`:
 - **Cyrius stdlib** (comprehensive set — see manifest; `thread` +
   `thread_local` added for the sigil 3.6.0 requirement)
 - **sakshi** 2.3.0 — structured logging / tracing (bundled in snapshot)
-- **sigil** 3.7.13 — hybrid (Ed25519 + ML-DSA-65) signature verification;
+- **sigil** 3.7.14 — hybrid (Ed25519 + ML-DSA-65) signature verification;
   **now included** (M8) by `src/security.cyr` for sigil-verified cert pins
   (requires `thread` + `thread_local` before it, both in `[deps] stdlib`)
-- **sandhi** 1.6.2 — HTTP/1.1+2 + WebDriver/Appium RPC layer (bundled in
-  snapshot)
+- **sandhi** 1.6.3 — HTTP/1.1+2 + WebDriver/Appium RPC layer; 1.6.3 adds the
+  endpoint-keyed default TLS-policy registry (`sandhi_rpc_set_default_tls_policy`)
+  the M8 F-2 cert-pin path needs (bundled in snapshot)
 - **bayan** 1.0.1 — data-codec bundle (base64 + json + csv/u128/bigint/toml/
   cyml); subsumes the former `base64.cyr` + `json.cyr` (bundled in snapshot)
 
@@ -362,14 +375,14 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
    (`examples/web-consumer/login.tcyr`, `examples/mobile-consumer/android.tcyr` /
    `ios.tcyr`). Also dropped the 0.6.2 macOS blocking-connect workaround (sandhi
    1.6.2 Darwin-ported the connect/timeout paths).
-8. **M8 — Security hardening** (first pass shipped v0.8.0). 🔒 **Partial.** Audit
-   filed; no-shell-out + error-surface verified clean; **F-1 fixed** (CDP JSON
-   escaper escapes the full C0 control range); **F-2 verification half** built +
-   tested (`src/security.cyr` sigil-verified cert-pin gate; `tests/m8.tcyr`
-   14/14; CI gates m5+m8). **Remaining for full M8:** end-to-end cert pinning is
-   gated on a sandhi RPC TLS-policy hook (sandhi issue
-   `2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy`) + remote-host support (host
-   hardcoded to 127.0.0.1).
+8. **M8 — Security hardening** (first pass v0.8.0; sandhi blocker cleared v0.8.1).
+   🔒 **Partial.** Audit filed; no-shell-out + error-surface clean; **F-1 fixed**
+   (CDP escaper escapes the full C0 range); **F-2 verification half** built +
+   tested (`src/security.cyr`; `tests/m8.tcyr` 14/14; CI gates m5+m8). The sandhi
+   blocker is **resolved** (1.6.3 `sandhi_rpc_set_default_tls_policy`, 6.2.12).
+   **Remaining for full M8 (yantra-side only):** remote-host support (host
+   hardcoded to 127.0.0.1) + register the verified pin via that registry on the
+   connect path.
 9. **v1.0** — remaining: complete M8 (F-2 end-to-end), mobile Appium parity
    benchmark numbers (`scripts/parity-appium.py`, web numbers already published),
    and the knife article. All five backends live, M5/M6/M7 done.
