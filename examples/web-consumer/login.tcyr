@@ -6,13 +6,13 @@
 # close — using the same `cyrius test` runner the consumer already has.
 # No separate framework, no config file, no CI plugin.
 #
-# Run (once the M1 Chromium/CDP backend is live):
+# Run (against a chromedriver/chromium on the default port):
 #   cyrius test examples/web-consumer/login.tcyr
 #
 # Consumers vendor the library as `lib/yantra.cyr` (from `dist/yantra.cyr`,
 # produced by `cyrius distlib`) and `include` it. The verbs below are the
-# M1 public surface — see ROADMAP.md. Until M1 lands this file documents
-# the target API and is not yet runnable end-to-end.
+# live public surface (M1 Chromium/CDP, shipped 0.2.1). Swap the opener to
+# `"firefox"`/`"chrome"`/`"webkit"`/`"safari"` to drive the WebDriver backends.
 
 include "lib/yantra.cyr"
 
@@ -29,5 +29,8 @@ fn test_login_redirects_to_dashboard() {
     return assert_summary();
 }
 
+# `yantra_exit` (not raw `syscall(60, ...)`) tears down any still-open
+# sessions before exiting, so a browser leaked by a failing assert above
+# still gets closed — pass or fail.
 var exit_code = test_login_redirects_to_dashboard();
-syscall(60, exit_code);
+yantra_exit(exit_code);

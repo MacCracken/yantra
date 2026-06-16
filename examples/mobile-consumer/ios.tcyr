@@ -1,0 +1,33 @@
+# examples/mobile-consumer/ios.tcyr — minimal "hello device" reference (iOS).
+#
+# The iOS counterpart to android.tcyr: drive a native iOS app over the Appium
+# server (XCUITest) with the same `cyrius test` runner.
+#
+# Run (against a booted iOS simulator + Appium on :4723):
+#   appium &                                   # Appium 3.x + xcuitest driver
+#   cyrius test examples/mobile-consumer/ios.tcyr
+#
+# Set the simulator target before opening. On a display-less / CI host you
+# typically also pin the UDID and go headless + no-reset + prebuilt WDA — see
+# the capability setters in docs/guides/migrating-from-appium.md.
+
+include "lib/yantra.cyr"
+
+fn test_open_settings() {
+    yantra_mobile_set_ios_device("iPhone 17", "18.6");
+    # XCUITest; Appium on the default port 4723.
+    var m = yantra_mobile_open("ios", "com.apple.Preferences");
+    assert_nonnull(m, "open ios session");
+
+    # The native UI hierarchy as XCUITest source.
+    assert_neq(yantra_mobile_source(m), 0, "got page source");
+
+    # Tap a native cell by accessibility id (~) — the iOS a11y label.
+    yantra_tap(m, "~General");
+
+    yantra_close(m);
+    return assert_summary();
+}
+
+var code = test_open_settings();
+yantra_exit(code);

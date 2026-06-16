@@ -160,13 +160,22 @@ as an artifact. Incumbent **parity** harnesses — `scripts/parity-playwright.mj
 incumbent installed (not in CI); the published web parity numbers are in the
 benchmarks section below. Mobile parity numbers: TODO (run the Appium harness).
 
-### M7 — Docs + Examples (v0.8.0)
+### M7 — Docs + Examples (shipped v0.7.0, 2026-06-15)
 
-- `docs/guides/getting-started.md` — from zero to first Chromium `.tcyr` test
-- `docs/guides/writing-e2e-tests.md` — auto-waiting, selector strategies, session sharing
-- `docs/guides/migrating-from-playwright.md` — translation cookbook
-- `docs/guides/migrating-from-appium.md` — translation cookbook
-- `docs/examples/` — one runnable example per backend
+✅ **Done.** Task-oriented guides + a runnable example per backend, all written
+against the verified public verb surface:
+
+- ✅ `docs/guides/getting-started.md` — from zero to first Chromium `.tcyr` test
+- ✅ `docs/guides/writing-e2e-tests.md` — auto-waiting, selector strategies, session sharing
+- ✅ `docs/guides/migrating-from-playwright.md` — translation cookbook
+- ✅ `docs/guides/migrating-from-appium.md` — translation cookbook
+- ✅ `docs/guides/README.md` — guides index
+- ✅ `docs/examples/` — one runnable example per backend (web `login.tcyr`;
+  mobile `android.tcyr` / `ios.tcyr`); README refreshed to "all five live"
+
+0.7.0 also dropped the 0.6.2 macOS blocking-connect workaround (sandhi 1.6.2
+Darwin-ported the connect/timeout paths). Future docs polish tracks consumer
+feedback once a first downstream project adopts them.
 
 ### M8 — Security hardening (v0.9.0)
 

@@ -4,6 +4,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-15
+
+> **M7 — docs + examples**, plus the post-6.2.11 transport cleanup. No public-API
+> changes; all five backends unchanged. Library consumers gain the guides and
+> per-backend examples; macOS users get proper connect/recv timeouts back.
+
+### Added
+- **M7 docs + examples.** New task-oriented guides under
+  `docs/guides/`: `getting-started.md` (zero to a passing Chromium `.tcyr`),
+  `writing-e2e-tests.md` (auto-waiting, selector strategies, session sharing,
+  structured errors, teardown), `migrating-from-playwright.md` and
+  `migrating-from-appium.md` (verb-by-verb translation cookbooks), plus a
+  `docs/guides/README.md` index. New runnable examples
+  `examples/mobile-consumer/android.tcyr` + `ios.tcyr` (the mobile analog of the
+  web `login.tcyr`); `docs/examples/README.md` refreshed (all five backends
+  live). The stale `examples/web-consumer/login.tcyr` "not runnable until M1"
+  header was corrected and it now demonstrates `yantra_exit` teardown.
+
+### Changed
+- **Dropped the macOS blocking-connect workaround in `wd_connect_timeout`**
+  (`src/protocol/webdriver.cyr`). The 0.6.2 workaround forced `connect_ms=0` +
+  unset `total_ms` to dodge sandhi's Linux-only non-blocking-connect constants on
+  Darwin (and gave up macOS recv timeouts). **sandhi 1.6.2** (bundled in the
+  0.6.3 cyrius 6.2.11 pin) Darwin-ported both the non-blocking connect path and
+  `SO_RCVTIMEO`, closing cyrius issue
+  `2026-06-06-sandhi-nonblocking-connect-not-darwin-ported`. The function now
+  restores proper timeouts: `connect_ms=15000` (localhost driver) + `read_ms` and
+  `total_ms` sized to the caller's session-open budget — correct on both Linux
+  and macOS. Offline build/unit/M5/lint/fmt green; the live-connect behavior
+  re-confirms on the macOS/iOS CI runner.
+
 ## [0.6.3] - 2026-06-15
 
 > **Toolchain refresh — Cyrius 6.2.11.** Pin moves off the 6.0.x line; the

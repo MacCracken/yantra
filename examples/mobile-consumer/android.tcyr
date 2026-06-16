@@ -1,0 +1,35 @@
+# examples/mobile-consumer/android.tcyr — minimal "hello device" reference (Android).
+#
+# The mobile analog of examples/web-consumer/login.tcyr: the smallest realistic
+# `.tcyr` for driving a native Android app, run with the same `cyrius test`
+# runner. yantra rides the Appium server (UiAutomator2) you already run.
+#
+# Run (against an Android emulator + Appium on :4723):
+#   appium &                                   # Appium 3.x + uiautomator2 driver
+#   cyrius test examples/mobile-consumer/android.tcyr
+#
+# A mobile session is a WebDriver-transport session, so the web verbs
+# (yantra_type / yantra_close / yantra_eval_*) work on it too; mobile adds
+# yantra_tap / yantra_tap_now / yantra_mobile_source.
+
+include "lib/yantra.cyr"
+
+fn test_open_settings() {
+    # UiAutomator2; Appium on the default port 4723 (yantra_mobile_set_port to override).
+    var m = yantra_mobile_open("android", "com.android.settings");
+    assert_nonnull(m, "open android session");
+
+    # The native UI hierarchy as UiAutomator2 XML.
+    assert_neq(yantra_mobile_source(m), 0, "got page source");
+
+    # Tap the first TextView. Selector prefixes: @id/ (resource-id), ~ (content-desc),
+    # / (xpath), text: (uiautomator text), else id.
+    yantra_tap(m, "/(//android.widget.TextView)[1]");
+
+    yantra_close(m);
+    return assert_summary();
+}
+
+# yantra_exit closes any still-open emulator session before exiting — pass or fail.
+var code = test_open_settings();
+yantra_exit(code);

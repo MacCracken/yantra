@@ -6,11 +6,14 @@ runner, config schema, or CI plugin (see [ADR 0001](../adr/0001-yantra-is-a-libr
 
 | Example | Backend | Status |
 |---------|---------|--------|
-| [`examples/web-consumer/login.tcyr`](../../examples/web-consumer/login.tcyr) | Chromium (CDP) | scaffold — runnable at M1 |
+| [`examples/web-consumer/login.tcyr`](../../examples/web-consumer/login.tcyr) | Chromium (CDP) / WebDriver | **live** — swap the opener for chrome/firefox/webkit/safari |
+| [`examples/mobile-consumer/android.tcyr`](../../examples/mobile-consumer/android.tcyr) | Android (Appium / UiAutomator2) | **live** |
+| [`examples/mobile-consumer/ios.tcyr`](../../examples/mobile-consumer/ios.tcyr) | iOS (Appium / XCUITest) | **live** |
 
-> Examples track the public API surface as each backend lands. Until the
-> M1 Chromium/CDP backend ships, the files document the target verbs and
-> are not yet runnable end-to-end. See [`../development/roadmap.md`](../development/roadmap.md).
+> All five backends are live. Each example needs its target running (a browser
+> on the DevTools port, a driver, or an Appium server + device) — see the header
+> of each file. New to yantra? Start with
+> [`../guides/getting-started.md`](../guides/getting-started.md).
 
 ## How a consumer uses yantra
 

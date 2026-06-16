@@ -6,6 +6,17 @@
 
 ## Version
 
+**0.7.0** — 2026-06-15. **M7 — docs + examples**, plus the post-6.2.11 transport
+cleanup. No public-API changes; all five backends unchanged. New
+`docs/guides/` (getting-started, writing-e2e-tests, migrating-from-playwright,
+migrating-from-appium, + index) and a runnable example per backend
+(`examples/web-consumer/login.tcyr`, `examples/mobile-consumer/android.tcyr` /
+`ios.tcyr`); `docs/examples/README.md` refreshed to "all five live". Dropped the
+0.6.2 macOS blocking-connect workaround in `wd_connect_timeout` now that bundled
+**sandhi 1.6.2** Darwin-ported the connect/timeout paths (cyrius issue
+`2026-06-06-sandhi-nonblocking-connect-not-darwin-ported` resolved) — proper
+`connect_ms`/`read_ms`/`total_ms` restored on macOS. Pin stays **6.2.11**.
+
 **0.6.3** — 2026-06-15. **Toolchain refresh — Cyrius 6.2.11** (from 6.0.66). No
 yantra source changes; the public API and all five backends are unchanged. The
 bundled stdlib libs yantra rides on advanced with the snapshot: **sandhi
@@ -112,10 +123,13 @@ backends stubbed pending transport-layer depth.
   confirmed: iOS CI is now 4/4 green. `setup-cyrius` installs solely via the
   canonical `scripts/install.sh`; the temporary "Ensure toolchain complete"
   repair/diagnostic step was removed once macOS CI went green (lib-snapshot cyrius
-  issue archived). One known macOS gap remains, worked around not blocking:
-  sandhi's non-blocking connect + `SO_RCVTIMEO` use Linux-only socket constants
-  (cyrius issue `2026-06-06-sandhi-nonblocking-connect-not-darwin-ported`); yantra
-  uses a blocking-connect workaround.
+  issue archived). The last known macOS gap — sandhi's non-blocking connect +
+  `SO_RCVTIMEO` using Linux-only socket constants (cyrius issue
+  `2026-06-06-sandhi-nonblocking-connect-not-darwin-ported`) — is **resolved** by
+  the 6.2.11 bump: bundled **sandhi 1.6.2** Darwin-ported both paths (via cyrius
+  6.2.10's `net_connect_nb`). yantra's blocking-connect workaround in
+  `wd_connect_timeout` was dropped post-0.6.3 (proper connect/recv timeouts
+  restored — see Unreleased). No known toolchain gaps remain.
 - **Bundled sandhi**: 1.6.2 (from 1.4.1 at the 6.2.11 refresh; carries the
   `Connection: close` Content-Length framing fix that yantra's M2 WebDriver
   backend depends on).
@@ -315,7 +329,17 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
 5. **M5 — auto-teardown + resilience** (shipped v0.6.0). ✅ **DONE** — registry +
    `yantra_exit`/`teardown_all`, structured `yantra_last_error`, retry-on-transient,
    tracing spans (`src/runtime.cyr`). Offline 14/14; verified across web + iOS.
-6. **M6 onward** — CI device matrix (Android emulator + iOS sim), docs/guides,
-   security hardening, v1.0.
+6. **M6 — CI device matrix** (shipped v0.6.2). ✅ **DONE** — all five backends
+   gate green on every push/PR (Chromium/CDP, chromedriver, Firefox, WebKit,
+   Android, iOS); `setup-cyrius` OS/arch-aware; bench-history CSV artifact.
+7. **M7 — Docs + Examples** (shipped v0.7.0). ✅ **DONE** — four guides
+   (`docs/guides/getting-started` / `writing-e2e-tests` / `migrating-from-playwright`
+   / `migrating-from-appium`) + index, and a runnable example per backend
+   (`examples/web-consumer/login.tcyr`, `examples/mobile-consumer/android.tcyr` /
+   `ios.tcyr`). Also dropped the 0.6.2 macOS blocking-connect workaround (sandhi
+   1.6.2 Darwin-ported the connect/timeout paths).
+8. **M8 — Security hardening** (v0.9.0) — control-byte sanitization on stderr,
+   sigil-verified HTTPS endpoint auth (sigil now bundled 3.7.13), no-shell-out
+   audit. Then v1.0. **← next.**
 
 Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.
