@@ -14,7 +14,7 @@ all-control-byte buffer overflow, buffers now 6×). **F-2 (verification half)** 
 new `src/security.cyr` `yantra_tls_pin_verify_ed25519`/`_hybrid` verify a
 sigil-signed SPKI cert-pin → a `sandhi_tls_policy_new_pinned`; sigil now in
 `[deps]`/`[lib]`. End-to-end pinning is gated on a sandhi RPC TLS-policy hook
-(cyrius issue `2026-06-15-sandhi-wd-rpc-no-tls-policy`) + remote-host support.
+(sandhi issue `2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy`) + remote-host support.
 New `tests/m8.tcyr` (14/14); CI now also gates `m5.tcyr` + `m8.tcyr`. Pin stays
 **6.2.11**.
 
@@ -221,7 +221,7 @@ WebDriver), M3 (Android Appium), M4 (iOS XCUITest).
 - `src/security.cyr` — **M8 transport security**: sigil-verified cert pins
   (`yantra_tls_pin_verify_ed25519`/`_hybrid` → `sandhi_tls_policy_new_pinned`).
   Verification gate live + tested; end-to-end application gated on a sandhi RPC
-  TLS-policy hook (cyrius issue `2026-06-15-sandhi-wd-rpc-no-tls-policy`).
+  TLS-policy hook (sandhi issue `2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy`).
 - `src/protocol/cdp.cyr` — Chrome DevTools Protocol over `ws.cyr`: discovery
   GET, command build/escape, response matching, eval/navigate/connect/close.
   **Live (M1).**
@@ -367,8 +367,8 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
    escaper escapes the full C0 control range); **F-2 verification half** built +
    tested (`src/security.cyr` sigil-verified cert-pin gate; `tests/m8.tcyr`
    14/14; CI gates m5+m8). **Remaining for full M8:** end-to-end cert pinning is
-   gated on a sandhi RPC TLS-policy hook (cyrius issue
-   `2026-06-15-sandhi-wd-rpc-no-tls-policy`) + remote-host support (host
+   gated on a sandhi RPC TLS-policy hook (sandhi issue
+   `2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy`) + remote-host support (host
    hardcoded to 127.0.0.1).
 9. **v1.0** — remaining: complete M8 (F-2 end-to-end), mobile Appium parity
    benchmark numbers (`scripts/parity-appium.py`, web numbers already published),

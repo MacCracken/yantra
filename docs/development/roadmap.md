@@ -187,7 +187,7 @@ feedback once a first downstream project adopts them.
 - ◐ WebDriver / Appium endpoint authentication via sigil-verified certs —
   verification gate built + tested (`src/security.cyr`, F-2). **End-to-end
   pinning deferred:** sandhi's `sandhi_wd_*`/`sandhi_ap_*` RPC has no TLS-policy
-  hook (cyrius issue `2026-06-15-sandhi-wd-rpc-no-tls-policy`); also needs
+  hook (sandhi issue `2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy`); also needs
   remote-host support (host hardcoded to 127.0.0.1).
 - ✅ No shell-out anywhere — verified clean (yantra spawns no processes).
 - ✅ Audit pass filed.

@@ -16,7 +16,7 @@
 # they return 0 and set YANTRA_ERR_VERIFY. Requires sigil in the consumer's
 # `[deps] stdlib`.
 #
-# NOTE (audit F-2): policy not yet applied per-action — see cyrius issue 2026-06-15-sandhi-wd-rpc-no-tls-policy.
+# NOTE (audit F-2): policy not yet applied per-action — see sandhi issue 2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy.
 # sandhi's `sandhi_wd_*` / `sandhi_ap_*` RPC takes only a base_url, no TLS
 # policy, so end-to-end wiring lands once sandhi grows policy-carrying RPC
 # variants. The verification gate is correct and tested now (tests/m8.tcyr);

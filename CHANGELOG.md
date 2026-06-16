@@ -38,8 +38,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `[lib]` bundle. `tests/m8.tcyr` covers sign→verify→tamper-reject→null-guards
   (14/14 offline). End-to-end application to live driver traffic is **blocked**:
   sandhi's `sandhi_wd_*` / `sandhi_ap_*` RPC takes only a `base_url` with no
-  TLS-policy hook, so the policy has no application point yet (filed cyrius issue
-  `2026-06-15-sandhi-wd-rpc-no-tls-policy`; also needs remote-host support — host
+  TLS-policy hook, so the policy has no application point yet (filed sandhi issue
+  `2026-06-15-yantra-sandhi-wd-rpc-no-tls-policy`; also needs remote-host support — host
   is hardcoded to `127.0.0.1`). Localhost sessions are unchanged (plain HTTP).
 
 ## [0.7.0] - 2026-06-15
