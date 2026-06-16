@@ -6,6 +6,15 @@
 
 ## Version
 
+**0.6.3** — 2026-06-15. **Toolchain refresh — Cyrius 6.2.11** (from 6.0.66). No
+yantra source changes; the public API and all five backends are unchanged. The
+bundled stdlib libs yantra rides on advanced with the snapshot: **sandhi
+1.4.1 → 1.6.2** (WebDriver/Appium RPC), **sigil 3.6.4 → 3.7.13** (cert
+verification, still M8-forward-looking), **sakshi 2.2.6 → 2.3.0** (tracing).
+Verified green on the new pin: smoke build, unit 2/2, M5 14/14, lint 0, fmt
+clean, `distlib` → `dist/yantra.cyr` v0.6.3. Live-device e2e gates in CI on the
+new pin (needs live targets; not re-run locally).
+
 **0.6.2** — 2026-06-04. **M6 — CI device matrix + parity harnesses.** yantra's
 e2e suite **gates green against all five backends on every push/PR**: Chromium
 (CDP) + chromedriver, **Firefox** (geckodriver), **WebKit** (WebKitWebDriver under
@@ -79,10 +88,13 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.0.66` (in `cyrius.cyml [package].cyrius`) — carries the
-  6.0.59 Darwin `net.cyr` port; ships all platforms (x86_64/aarch64 ×
-  linux/macos + windows), so it stays the cross-platform floor. Vendored `lib/`
-  is gitignored and materialized with `cyrius lib sync`. **6.0.63** fixed the
+- **Cyrius pin**: `6.2.11` (in `cyrius.cyml [package].cyrius`) — refreshed off
+  the 6.0.x line in 0.6.3. Carries forward the 6.0.59 Darwin `net.cyr` port and
+  the 6.0.66 `cbt` macOS fixes; ships all platforms (x86_64/aarch64 ×
+  linux/macos + windows), so it stays the cross-platform floor. Build/test/lint/
+  fmt/distlib verified green on it. Vendored `lib/` is gitignored and
+  materialized with `cyrius lib sync`. *Toolchain history (6.0.x):* **6.0.63**
+  fixed the
   arm64-macOS `GETDENTS64` bug (`61` untranslated → `EBADF`) that made `cyrius lib
   sync` report `snapshot lib not found` on a populated dir (the earlier `cp`/cache
   theories were red herrings — cyrius simply couldn't enumerate the directory on
@@ -98,9 +110,10 @@ backends stubbed pending transport-layer depth.
   sandhi's non-blocking connect + `SO_RCVTIMEO` use Linux-only socket constants
   (cyrius issue `2026-06-06-sandhi-nonblocking-connect-not-darwin-ported`); yantra
   uses a blocking-connect workaround.
-- **Bundled sandhi**: 1.4.1 (includes the `Connection: close` Content-Length
-  framing fix that yantra's M2 WebDriver backend depends on).
-- **sigil 3.6.0 requires** `thread.cyr` + `thread_local.cyr` included before
+- **Bundled sandhi**: 1.6.2 (from 1.4.1 at the 6.2.11 refresh; carries the
+  `Connection: close` Content-Length framing fix that yantra's M2 WebDriver
+  backend depends on).
+- **sigil 3.7.13 requires** `thread.cyr` + `thread_local.cyr` included before
   it. Both are listed in `cyrius.cyml [deps] stdlib`. yantra does not include
   sigil yet (it enters at M8, cert verification) — this is a forward-looking
   constraint, not a current one.
@@ -138,7 +151,7 @@ An earlier revision of this section wrongly claimed M2–M4 were blocked on
 `lib/http.cyr` and missed `lib/sandhi.cyr`, the stdlib's full HTTP client.
 **Nothing is transport-blocked.**
 
-- **`lib/sandhi.cyr` (v1.3.4)** — the real HTTP client: a complete HTTP/1.1 +
+- **`lib/sandhi.cyr` (v1.6.2)** — the real HTTP client: a complete HTTP/1.1 +
   HTTP/2 stack. `sandhi_http_get/post/put/patch/delete/head(url, headers,
   body, len)`, full header management (`sandhi_headers_*`), **HTTPS/TLS**
   (`sandhi_conn_open(.., use_tls, sni_host)`, ALPN, TLS 1.3 0-RTT, session
@@ -258,9 +271,11 @@ Declared in `cyrius.cyml`:
 
 - **Cyrius stdlib** (comprehensive set — see manifest; `thread` +
   `thread_local` added for the sigil 3.6.0 requirement)
-- **sakshi** 2.2.6 — structured logging / tracing (bundled in snapshot)
-- **sigil** 3.6.0 — HTTPS cert verification (bundled in snapshot; not yet
+- **sakshi** 2.3.0 — structured logging / tracing (bundled in snapshot)
+- **sigil** 3.7.13 — HTTPS cert verification (bundled in snapshot; not yet
   included by yantra — enters at M8)
+- **sandhi** 1.6.2 — HTTP/1.1+2 + WebDriver/Appium RPC layer (bundled in
+  snapshot)
 
 ## Consumers
 

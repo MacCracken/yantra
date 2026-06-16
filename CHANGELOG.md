@@ -4,6 +4,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-06-15
+
+> **Toolchain refresh — Cyrius 6.2.11.** Pin moves off the 6.0.x line; the
+> bundled stdlib transport/observability libs yantra rides on advanced with it.
+> The public API and all five backends are unchanged.
+
+### Changed
+- **Toolchain pin → 6.2.11** (from 6.0.66). `cyrius lib sync`'d against the
+  6.2.11 snapshot. Build, unit suite, M5 resilience suite, lint, fmt, and
+  `distlib` all green on the new toolchain.
+- **Bundled stdlib libs advanced** (resolved from the snapshot via `[deps]
+  stdlib`, not git-pinned):
+  - **sandhi 1.4.1 → 1.6.2** — the HTTP/1.1+2 + WebDriver/Appium RPC layer M2
+    (WebDriver) and M3/M4 (Appium) ride on.
+  - **sigil 3.6.4 → 3.7.13** — HTTPS cert verification (still forward-looking;
+    yantra does not include sigil until M8).
+  - **sakshi 2.2.6 → 2.3.0** — tracing spans (`yantra_trace_enable`).
+
+### Fixed
+- **`yantra_version()` reported `0.6.0`** — the constant in `src/main.cyr` was
+  never bumped through 0.6.1/0.6.2; now returns `0.6.3`.
+
+### Verified
+- Smoke build links the full `[lib]` chain; unit **2/2**, M5 offline **14/14**;
+  `cyrius lint` 0 warnings; `cyrius fmt --check` clean; `cyrius distlib` emits
+  `dist/yantra.cyr` v0.6.3. Live-device e2e (web/Android/iOS) not re-run here —
+  they need live targets and gate in CI on the new pin.
+
 ## [0.6.2] - 2026-06-04
 
 > **M6 — CI device matrix + parity-benchmark harnesses.** yantra's own e2e suite
