@@ -177,12 +177,23 @@ against the verified public verb surface:
 Darwin-ported the connect/timeout paths). Future docs polish tracks consumer
 feedback once a first downstream project adopts them.
 
-### M8 — Security hardening (v0.9.0)
+### M8 — Security hardening (first pass shipped v0.8.0)
 
-- Control-byte sanitization on every string yantra echoes to stderr (ANSI injection defense — same class owl closed in 1.0.0)
-- WebDriver / Appium endpoint authentication via sigil-verified HTTPS certs
-- No shell-out anywhere — all process spawns via `fork` + `execve` with explicit argv
-- Audit pass against `docs/audit/YYYY-MM-DD-audit.md`
+🔒 **Partial — v0.8.0.** Audit `docs/audit/2026-06-15-audit.md`.
+
+- ✅ Control-byte sanitization — CDP JSON escaper now escapes the full C0 range
+  (`\u00XX`); closed an invalid-JSON / ANSI-injection gap + a latent buffer
+  overflow (F-1). yantra writes nothing to stderr; error strings are static.
+- ◐ WebDriver / Appium endpoint authentication via sigil-verified certs —
+  verification gate built + tested (`src/security.cyr`, F-2). **End-to-end
+  pinning deferred:** sandhi's `sandhi_wd_*`/`sandhi_ap_*` RPC has no TLS-policy
+  hook (cyrius issue `2026-06-15-sandhi-wd-rpc-no-tls-policy`); also needs
+  remote-host support (host hardcoded to 127.0.0.1).
+- ✅ No shell-out anywhere — verified clean (yantra spawns no processes).
+- ✅ Audit pass filed.
+
+> Full M8 closes when the sandhi RPC TLS-policy hook + remote-host support land
+> and the verified pin is threaded through the connect + per-action path.
 
 ### v1.0 criteria
 

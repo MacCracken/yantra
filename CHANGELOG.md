@@ -4,6 +4,44 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-15
+
+> **M8 — security hardening (first pass).** Audit filed; the CDP wire escaper is
+> hardened (F-1) and the sigil-verified cert-pin gate lands (F-2, verification
+> half). End-to-end cert pinning waits on a sandhi RPC TLS-policy hook (filed).
+> No public-API removals; one new error code and two new (additive) verbs.
+
+### Changed
+- **CI now gates the offline suites.** The `Test` job ran only
+  `tests/yantra.tcyr`; it now also runs `tests/m5.tcyr` (resilience, was never
+  gated) and `tests/m8.tcyr` (security). All three are offline / CI-safe.
+
+### Security
+- **M8 audit opened** — `docs/audit/2026-06-15-audit.md` (first-party security
+  audit at 0.7.0). Verified-clean: no shell-out anywhere (yantra spawns no
+  processes), static error messages with no remote-byte/secret leakage, opaque
+  session IDs, and sandhi-builder-escaped WebDriver/Appium request JSON.
+- **F-1 (fixed) — CDP JSON escaper dropped control bytes.** `_cdp_b_esc`
+  (`src/protocol/cdp.cyr`) escaped only `" \ \n \r \t` and passed the rest of the
+  C0 range (`0x00`–`0x1F`) through verbatim — both invalid JSON and a
+  terminal-escape (ANSI) injection vector (`0x1B`). It now emits `\u00XX` for any
+  remaining control byte, masks to 0–255 so UTF-8 continuation bytes pass through
+  untouched, and the CDP command builders size buffers at the 6× worst-case
+  expansion (an all-control-byte input previously could overflow the 2× buffer).
+  New offline suite `tests/m8.tcyr`.
+- **F-2 (partial) — sigil-verified cert-pin gate.** New `src/security.cyr` with
+  `yantra_tls_pin_verify_ed25519(spki_hex, ed_sig, ed_pk)` and
+  `yantra_tls_pin_verify_hybrid(…)`: they verify a sigil-signed SPKI cert-pin
+  descriptor (Ed25519, or hybrid Ed25519 + ML-DSA-65) and, only on a good
+  signature, return a `sandhi_tls_policy_new_pinned` handle — else 0 +
+  `YANTRA_ERR_VERIFY` (new code). **sigil** is now in `[deps] stdlib` and the
+  `[lib]` bundle. `tests/m8.tcyr` covers sign→verify→tamper-reject→null-guards
+  (14/14 offline). End-to-end application to live driver traffic is **blocked**:
+  sandhi's `sandhi_wd_*` / `sandhi_ap_*` RPC takes only a `base_url` with no
+  TLS-policy hook, so the policy has no application point yet (filed cyrius issue
+  `2026-06-15-sandhi-wd-rpc-no-tls-policy`; also needs remote-host support — host
+  is hardcoded to `127.0.0.1`). Localhost sessions are unchanged (plain HTTP).
+
 ## [0.7.0] - 2026-06-15
 
 > **M7 — docs + examples**, plus the post-6.2.11 transport cleanup. No public-API

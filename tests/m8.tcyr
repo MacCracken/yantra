@@ -1,0 +1,113 @@
+# tests/m8.tcyr — M8 security hardening, offline (no browser/driver needed).
+# Exercises the CDP JSON escaper (docs/audit/2026-06-15-audit.md F-1): named
+# short escapes, the \u00XX control-byte fallback, and UTF-8 passthrough.
+
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/bayan.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
+include "lib/thread.cyr"
+include "lib/thread_local.cyr"
+include "lib/sigil.cyr"
+include "src/main.cyr"
+include "src/runtime.cyr"
+include "src/security.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+fn main() {
+    alloc_init();
+    test_group("m8-security");
+
+    # Plain ASCII passes through unchanged.
+    var o1 = alloc(64);
+    var n1 = _cdp_b_esc(o1, 0, "hello");
+    store8(o1 + n1, 0);
+    assert_streq(o1, "hello", "plain passthrough");
+
+    # Named short escapes: " \ \n \r \t.
+    var o2 = alloc(64);
+    var n2 = _cdp_b_esc(o2, 0, "a\"b");      # a"b -> a\"b
+    store8(o2 + n2, 0);
+    assert_streq(o2, "a\\\"b", "quote -> backslash-quote");
+
+    var o3 = alloc(64);
+    var n3 = _cdp_b_esc(o3, 0, "x\ny");      # newline -> \n
+    store8(o3 + n3, 0);
+    assert_streq(o3, "x\\ny", "newline -> backslash-n");
+
+    # F-1: a bare C0 control byte (ESC 0x1B) becomes a backslash-u escape, not a raw byte.
+    var src = alloc(4);
+    store8(src + 0, 65);    # 'A'
+    store8(src + 1, 27);    # ESC (0x1B)
+    store8(src + 2, 66);    # 'B'
+    store8(src + 3, 0);
+    var o4 = alloc(64);
+    var n4 = _cdp_b_esc(o4, 0, src);
+    store8(o4 + n4, 0);
+    assert_streq(o4, "A\\u001bB", "ESC -> \\u001b (no raw control byte on the wire)");
+    assert_eq(n4, 8, "ESC escape is 6 bytes wide (A + 6 + B)");
+
+    # Another control byte (0x07 BEL) -> .
+    var src2 = alloc(2);
+    store8(src2 + 0, 7);
+    store8(src2 + 1, 0);
+    var o5 = alloc(16);
+    var n5 = _cdp_b_esc(o5, 0, src2);
+    store8(o5 + n5, 0);
+    assert_streq(o5, "\\u0007", "BEL -> \\u0007");
+
+    # UTF-8 continuation bytes (>= 0x80) pass through unescaped — the mask must
+    # not misclassify them as control bytes even if load8 sign-extends.
+    var src3 = alloc(4);
+    store8(src3 + 0, 195);  # 0xC3
+    store8(src3 + 1, 169);  # 0xA9  ("é")
+    store8(src3 + 2, 0);
+    var o6 = alloc(16);
+    var n6 = _cdp_b_esc(o6, 0, src3);
+    assert_eq(n6, 2, "utf8 2-byte sequence not expanded");
+    assert_eq(load8(o6) & 255, 195, "utf8 byte 1 preserved");
+    assert_eq(load8(o6 + 1) & 255, 169, "utf8 byte 2 preserved");
+
+    # F-2: sigil-verified cert-pin roundtrip. Sign an SPKI-pin string with a
+    # fresh Ed25519 key, then verify it through the yantra security primitive.
+    var seed = alloc(32);
+    var si = 0;
+    while (si < 32) { store8(seed + si, si + 1); si = si + 1; }
+    var sk = alloc(64);
+    var pk = alloc(32);
+    ed25519_keypair(seed, sk, pk);
+
+    var spki = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+    var sig = alloc(64);
+    ed25519_sign(sk, spki, strlen(spki), sig);
+
+    # Good signature -> a non-zero pinned TLS policy handle.
+    var pol = yantra_tls_pin_verify_ed25519(spki, sig, pk);
+    assert(pol != 0, "valid sigil pin -> tls policy handle");
+
+    # Tampered signature -> rejected with YANTRA_ERR_VERIFY.
+    var b0 = load8(sig) & 255;
+    store8(sig, (b0 + 1) & 255);
+    var bad = yantra_tls_pin_verify_ed25519(spki, sig, pk);
+    assert(bad == 0, "tampered pin signature rejected");
+    assert_eq(yantra_last_error(), YANTRA_ERR_VERIFY, "tampered pin -> VERIFY error");
+
+    # Null-argument guards.
+    assert(yantra_tls_pin_verify_ed25519(0, sig, pk) == 0, "null spki rejected");
+    assert_eq(yantra_last_error(), YANTRA_ERR_NULL, "null spki -> NULL error");
+
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);

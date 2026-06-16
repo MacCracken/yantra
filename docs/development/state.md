@@ -6,6 +6,18 @@
 
 ## Version
 
+**0.8.0** — 2026-06-15. **M8 — security hardening (first pass).** Audit filed
+(`docs/audit/2026-06-15-audit.md`): no-shell-out + error-surface verified clean.
+**F-1 fixed** — the CDP JSON escaper now escapes the full C0 control range
+(`\u00XX`), closing an invalid-JSON / ANSI-injection gap (and a latent
+all-control-byte buffer overflow, buffers now 6×). **F-2 (verification half)** —
+new `src/security.cyr` `yantra_tls_pin_verify_ed25519`/`_hybrid` verify a
+sigil-signed SPKI cert-pin → a `sandhi_tls_policy_new_pinned`; sigil now in
+`[deps]`/`[lib]`. End-to-end pinning is gated on a sandhi RPC TLS-policy hook
+(cyrius issue `2026-06-15-sandhi-wd-rpc-no-tls-policy`) + remote-host support.
+New `tests/m8.tcyr` (14/14); CI now also gates `m5.tcyr` + `m8.tcyr`. Pin stays
+**6.2.11**.
+
 **0.7.0** — 2026-06-15. **M7 — docs + examples**, plus the post-6.2.11 transport
 cleanup. No public-API changes; all five backends unchanged. New
 `docs/guides/` (getting-started, writing-e2e-tests, migrating-from-playwright,
@@ -134,9 +146,10 @@ backends stubbed pending transport-layer depth.
   `Connection: close` Content-Length framing fix that yantra's M2 WebDriver
   backend depends on).
 - **sigil 3.7.13 requires** `thread.cyr` + `thread_local.cyr` included before
-  it. Both are listed in `cyrius.cyml [deps] stdlib`. yantra does not include
-  sigil yet (it enters at M8, cert verification) — this is a forward-looking
-  constraint, not a current one.
+  it. Both are listed in `cyrius.cyml [deps] stdlib`. yantra **now includes
+  sigil** (M8) via `src/security.cyr` for the sigil-verified cert-pin gate — so
+  this ordering is a current constraint (the `[lib]` bundle and `programs/smoke.cyr`
+  include `thread`/`thread_local` before `sigil`).
 
 ## Supported backends
 
@@ -205,6 +218,10 @@ WebDriver), M3 (Android Appium), M4 (iOS XCUITest).
 - `src/runtime.cyr` — **M5 resilience surface**: structured errors
   (`yantra_last_error`/`_str`), session registry + auto-teardown, retry/backoff
   config, tracing-span helpers, shared sleep. **Live (M5).**
+- `src/security.cyr` — **M8 transport security**: sigil-verified cert pins
+  (`yantra_tls_pin_verify_ed25519`/`_hybrid` → `sandhi_tls_policy_new_pinned`).
+  Verification gate live + tested; end-to-end application gated on a sandhi RPC
+  TLS-policy hook (cyrius issue `2026-06-15-sandhi-wd-rpc-no-tls-policy`).
 - `src/protocol/cdp.cyr` — Chrome DevTools Protocol over `ws.cyr`: discovery
   GET, command build/escape, response matching, eval/navigate/connect/close.
   **Live (M1).**
@@ -219,9 +236,11 @@ WebDriver), M3 (Android Appium), M4 (iOS XCUITest).
   Appium via `sandhi_wd_*`/`sandhi_ap_*`. **Live (M3 + M4); e2e 4/4 on both
   Android and iOS.**
 
-The `[lib] modules` bundle order is `main → runtime → cdp → webdriver → web → mobile`;
-these modules carry no `include`s (stdlib resolved by the consumer).
-`programs/smoke.cyr` stitches the stdlib chain on for a local link-check.
+The `[lib] modules` bundle order is
+`main → runtime → security → cdp → webdriver → web → mobile`; these modules carry
+no `include`s (stdlib resolved by the consumer). `programs/smoke.cyr` stitches the
+stdlib chain on for a local link-check (including `thread`/`thread_local`/`sigil`
+before the src modules, for `security.cyr`).
 
 ## Tests & benchmarks
 
@@ -231,6 +250,10 @@ these modules carry no `include`s (stdlib resolved by the consumer).
 - `tests/yantra.fcyr` — fuzz harness (`cyrius fuzz`), stub.
 - `tests/m5.tcyr` — M5 resilience suite (**14/14**): structured errors,
   null-guards, session registry + teardown, tracing toggle. Offline / CI-safe.
+- `tests/m8.tcyr` — M8 security suite (**14/14**): CDP JSON escaper (F-1 —
+  named short escapes, `\u00XX` control-byte fallback, UTF-8 passthrough) +
+  sigil-verified cert-pin gate (F-2 — Ed25519 sign→verify→tamper-reject,
+  null-guards). Offline / CI-safe.
 - `tests/e2e/chromium-smoke.tcyr` — M1 acceptance E2E. **Passing (11/11)**
   against live headless Chromium: open → navigate → url → type (value
   round-trips) → click (checkbox toggles) → click_now → close, all over CDP
@@ -295,8 +318,9 @@ Declared in `cyrius.cyml`:
 - **Cyrius stdlib** (comprehensive set — see manifest; `thread` +
   `thread_local` added for the sigil 3.6.0 requirement)
 - **sakshi** 2.3.0 — structured logging / tracing (bundled in snapshot)
-- **sigil** 3.7.13 — HTTPS cert verification (bundled in snapshot; not yet
-  included by yantra — enters at M8)
+- **sigil** 3.7.13 — hybrid (Ed25519 + ML-DSA-65) signature verification;
+  **now included** (M8) by `src/security.cyr` for sigil-verified cert pins
+  (requires `thread` + `thread_local` before it, both in `[deps] stdlib`)
 - **sandhi** 1.6.2 — HTTP/1.1+2 + WebDriver/Appium RPC layer (bundled in
   snapshot)
 - **bayan** 1.0.1 — data-codec bundle (base64 + json + csv/u128/bigint/toml/
@@ -338,8 +362,16 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
    (`examples/web-consumer/login.tcyr`, `examples/mobile-consumer/android.tcyr` /
    `ios.tcyr`). Also dropped the 0.6.2 macOS blocking-connect workaround (sandhi
    1.6.2 Darwin-ported the connect/timeout paths).
-8. **M8 — Security hardening** (v0.9.0) — control-byte sanitization on stderr,
-   sigil-verified HTTPS endpoint auth (sigil now bundled 3.7.13), no-shell-out
-   audit. Then v1.0. **← next.**
+8. **M8 — Security hardening** (first pass shipped v0.8.0). 🔒 **Partial.** Audit
+   filed; no-shell-out + error-surface verified clean; **F-1 fixed** (CDP JSON
+   escaper escapes the full C0 control range); **F-2 verification half** built +
+   tested (`src/security.cyr` sigil-verified cert-pin gate; `tests/m8.tcyr`
+   14/14; CI gates m5+m8). **Remaining for full M8:** end-to-end cert pinning is
+   gated on a sandhi RPC TLS-policy hook (cyrius issue
+   `2026-06-15-sandhi-wd-rpc-no-tls-policy`) + remote-host support (host
+   hardcoded to 127.0.0.1).
+9. **v1.0** — remaining: complete M8 (F-2 end-to-end), mobile Appium parity
+   benchmark numbers (`scripts/parity-appium.py`, web numbers already published),
+   and the knife article. All five backends live, M5/M6/M7 done.
 
 Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.

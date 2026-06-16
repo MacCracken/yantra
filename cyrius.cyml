@@ -32,8 +32,8 @@ cyrius = "6.2.11"
 #                JSON cleanly.
 #   sakshi (2.3.0) / sigil (3.7.13) — bundled in the stdlib snapshot.
 #   NOTE: sigil requires `thread.cyr` + `thread_local.cyr` included
-#   before it — see `[deps] stdlib` below (forward-looking for the M8
-#   cert-verification path; yantra does not include sigil yet).
+#   before it — see `[deps] stdlib` below. yantra now includes sigil
+#   (M8) via `src/security.cyr` for sigil-verified cert pins.
 #
 # Downstream consumers include via `dist/yantra.cyr` — the bundled
 # single-file distribution that `cyrius distlib` builds from the
@@ -51,6 +51,7 @@ output = "build/yantra-smoke"
 modules = [
     "src/main.cyr",
     "src/runtime.cyr",
+    "src/security.cyr",
     "src/protocol/cdp.cyr",
     "src/protocol/webdriver.cyr",
     "src/web.cyr",
@@ -89,6 +90,7 @@ stdlib = [
     "fdlopen",  # tls bridge
     "mmap",     # tls/sandhi
     "sakshi",   # M5 tracing spans (yantra_trace_enable)
+    "sigil",    # M8 sigil-verified cert pins (src/security.cyr); needs thread + thread_local before it
 ]
 
 # sakshi + sigil are now folded into Cyrius stdlib — include via

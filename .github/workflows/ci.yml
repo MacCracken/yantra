@@ -42,7 +42,10 @@ jobs:
           cyrius build programs/smoke.cyr build/yantra-smoke
 
       - name: Test
-        run: cyrius test tests/yantra.tcyr
+        run: |
+          cyrius test tests/yantra.tcyr
+          cyrius test tests/m5.tcyr
+          cyrius test tests/m8.tcyr
 
       - name: Benchmarks
         run: cyrius bench tests/yantra.bcyr

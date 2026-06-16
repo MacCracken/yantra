@@ -1,0 +1,45 @@
+# src/security.cyr — M8 endpoint transport security: sigil-verified cert pins.
+#
+# A consumer pointing a yantra session at a REMOTE WebDriver/Appium grid over
+# HTTPS wants to pin the endpoint's certificate by its SPKI (Subject Public Key
+# Info) SHA-256 hash. Rather than trust a bare hex string, the pin is delivered
+# as a descriptor SIGNED with sigil — so a tampered or substituted pin is
+# rejected before it is ever applied. These verbs are the crypto gate:
+#
+#   spki_hex  — the pinned SPKI SHA-256 (hex), i.e. the signed message.
+#   ed_sig    — 64-byte Ed25519 signature over spki_hex.
+#   ed_pk     — 32-byte Ed25519 public key of the trusted pin signer.
+#   mldsa_*   — ML-DSA-65 signature + public key (hybrid PQC variant only).
+#
+# On a good signature they return a sandhi pinned-cert TLS policy handle
+# (sandhi_tls_policy_new_pinned) ready to attach to a connection; on a bad one
+# they return 0 and set YANTRA_ERR_VERIFY. Requires sigil in the consumer's
+# `[deps] stdlib`.
+#
+# NOTE (audit F-2): policy not yet applied per-action — see cyrius issue 2026-06-15-sandhi-wd-rpc-no-tls-policy.
+# sandhi's `sandhi_wd_*` / `sandhi_ap_*` RPC takes only a base_url, no TLS
+# policy, so end-to-end wiring lands once sandhi grows policy-carrying RPC
+# variants. The verification gate is correct and tested now (tests/m8.tcyr);
+# see docs/audit/2026-06-15-audit.md F-2.
+
+# Verify an Ed25519-signed SPKI cert-pin; return a sandhi pinned TLS policy or 0.
+fn yantra_tls_pin_verify_ed25519(spki_hex, ed_sig, ed_pk): i64 {
+    _yantra_clear_err();
+    if (spki_hex == 0) { _yantra_set_err(YANTRA_ERR_NULL, "null spki pin"); return 0; }
+    if (ed_sig == 0) { _yantra_set_err(YANTRA_ERR_NULL, "null pin signature"); return 0; }
+    if (ed_pk == 0) { _yantra_set_err(YANTRA_ERR_NULL, "null signer key"); return 0; }
+    var ok = sigil_verify_hybrid(spki_hex, strlen(spki_hex), ed_sig, ed_pk, 0, 0, SIG_ALG_ED25519);
+    if (ok != 1) { _yantra_set_err(YANTRA_ERR_VERIFY, "sigil pin signature did not verify"); return 0; }
+    return sandhi_tls_policy_new_pinned(spki_hex);
+}
+
+# Hybrid (Ed25519 + ML-DSA-65) variant — both signatures must verify.
+fn yantra_tls_pin_verify_hybrid(spki_hex, ed_sig, ed_pk, mldsa_sig, mldsa_pk): i64 {
+    _yantra_clear_err();
+    if (spki_hex == 0) { _yantra_set_err(YANTRA_ERR_NULL, "null spki pin"); return 0; }
+    if (ed_sig == 0 || ed_pk == 0) { _yantra_set_err(YANTRA_ERR_NULL, "null ed25519 sig/key"); return 0; }
+    if (mldsa_sig == 0 || mldsa_pk == 0) { _yantra_set_err(YANTRA_ERR_NULL, "null ml-dsa sig/key"); return 0; }
+    var ok = sigil_verify_hybrid(spki_hex, strlen(spki_hex), ed_sig, ed_pk, mldsa_sig, mldsa_pk, SIG_ALG_HYBRID);
+    if (ok != 1) { _yantra_set_err(YANTRA_ERR_VERIFY, "sigil hybrid pin signature did not verify"); return 0; }
+    return sandhi_tls_policy_new_pinned(spki_hex);
+}

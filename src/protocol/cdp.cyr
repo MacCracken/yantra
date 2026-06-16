@@ -44,17 +44,38 @@ fn _cdp_b_int(buf, off, n): i64 {
     return off + w;
 }
 
+# nibble (0..15) -> ASCII hex digit ('0'..'9','a'..'f').
+fn _cdp_hex_digit(n): i64 {
+    if (n < 10) { return 48 + n; }
+    return 87 + n;
+}
+
 # Append s to buf at off, JSON-escaped (no surrounding quotes); return off.
+# Every byte < 0x20 is escaped: the named short forms (\" \\ \n \r \t) plus a
+# \u00XX fallback for the rest of the C0 control range. Leaving a control byte
+# (notably 0x1B ESC) unescaped would be both invalid JSON and a terminal-escape
+# injection vector — see docs/audit/2026-06-15-audit.md F-1. The byte is masked
+# to 0..255 so UTF-8 continuation bytes (>= 0x80) pass through unescaped even if
+# load8 sign-extends. Worst-case expansion is 6x; callers size buffers at *6.
 fn _cdp_b_esc(buf, off, s): i64 {
     var i = 0;
     var L = strlen(s);
     while (i < L) {
-        var c = load8(s + i);
+        var c = load8(s + i) & 255;
         if      (c == 34) { store8(buf + off, 92); store8(buf + off + 1, 34);  off = off + 2; }
         elif    (c == 92) { store8(buf + off, 92); store8(buf + off + 1, 92);  off = off + 2; }
         elif    (c == 10) { store8(buf + off, 92); store8(buf + off + 1, 110); off = off + 2; }
         elif    (c == 13) { store8(buf + off, 92); store8(buf + off + 1, 114); off = off + 2; }
         elif    (c ==  9) { store8(buf + off, 92); store8(buf + off + 1, 116); off = off + 2; }
+        elif    (c < 32)  {
+            store8(buf + off, 92);                              # backslash
+            store8(buf + off + 1, 117);                         # u
+            store8(buf + off + 2, 48);                          # 0
+            store8(buf + off + 3, 48);                          # 0
+            store8(buf + off + 4, _cdp_hex_digit(c / 16));
+            store8(buf + off + 5, _cdp_hex_digit(c % 16));
+            off = off + 6;
+        }
         else              { store8(buf + off, c); off = off + 1; }
         i = i + 1;
     }
@@ -94,7 +115,7 @@ fn _cdp_cmd0(id, method): i64 {
 
 # {"id":N,"method":"Page.navigate","params":{"url":"..."}}
 fn _cdp_cmd_navigate(id, url): i64 {
-    var buf = alloc(strlen(url) * 2 + 256);
+    var buf = alloc(strlen(url) * 6 + 256);   # *6: worst-case \u00XX escape expansion
     var o = 0;
     o = _cdp_b_cstr(buf, o, "{\"id\":");
     o = _cdp_b_int(buf, o, id);
@@ -108,7 +129,7 @@ fn _cdp_cmd_navigate(id, url): i64 {
 # {"id":N,"method":"Runtime.evaluate","params":{"expression":"JS",
 #   "returnByValue":true,"awaitPromise":true}}
 fn _cdp_cmd_eval(id, js): i64 {
-    var buf = alloc(strlen(js) * 2 + 256);
+    var buf = alloc(strlen(js) * 6 + 256);   # *6: worst-case \u00XX escape expansion
     var o = 0;
     o = _cdp_b_cstr(buf, o, "{\"id\":");
     o = _cdp_b_int(buf, o, id);

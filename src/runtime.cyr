@@ -18,6 +18,7 @@ var YANTRA_ERR_SESSION  = 4;   # session create failed (driver rejected caps)
 var YANTRA_ERR_NAV      = 5;   # navigation failed
 var YANTRA_ERR_NO_ELEMENT = 6; # selector matched nothing (within the wait)
 var YANTRA_ERR_ACTION   = 7;   # click / type / eval failed at the protocol
+var YANTRA_ERR_VERIFY   = 8;   # sigil signature over a cert-pin descriptor failed
 
 var _yantra_err_code = 0;
 var _yantra_err_msg  = 0;
