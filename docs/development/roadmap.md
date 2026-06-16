@@ -177,24 +177,20 @@ against the verified public verb surface:
 Darwin-ported the connect/timeout paths). Future docs polish tracks consumer
 feedback once a first downstream project adopts them.
 
-### M8 — Security hardening (first pass v0.8.0; sandhi blocker cleared v0.8.1)
+### M8 — Security hardening (v0.8.0–v0.8.2)
 
-🔒 **Partial.** Audit `docs/audit/2026-06-15-audit.md`.
+✅ **Done.** Audit `docs/audit/2026-06-15-audit.md` (fully closed).
 
-- ✅ Control-byte sanitization — CDP JSON escaper now escapes the full C0 range
+- ✅ Control-byte sanitization — CDP JSON escaper escapes the full C0 range
   (`\u00XX`); closed an invalid-JSON / ANSI-injection gap + a latent buffer
-  overflow (F-1). yantra writes nothing to stderr; error strings are static.
-- ◐ WebDriver / Appium endpoint authentication via sigil-verified certs —
-  verification gate built + tested (`src/security.cyr`, F-2). The sandhi-side
-  hook landed in **1.6.3 / 6.2.12** (`sandhi_rpc_set_default_tls_policy`,
-  endpoint-keyed default-policy registry; issue archived). **Remaining
-  (yantra-side only):** remote-host support (host hardcoded to 127.0.0.1) +
-  register the verified pin on the connect path.
+  overflow (F-1, v0.8.0). yantra writes nothing to stderr; error strings static.
+- ✅ WebDriver / Appium endpoint authentication via sigil-verified certs (F-2,
+  v0.8.2). `yantra_web_set_host`/`yantra_mobile_set_host` (remote endpoints) +
+  `set_tls_pin_ed25519`/`_hybrid` verify a sigil-signed SPKI pin, switch to
+  HTTPS, and register it via sandhi 1.6.3's `sandhi_rpc_set_default_tls_policy`
+  so every per-action call enforces it. Localhost byte-identical.
 - ✅ No shell-out anywhere — verified clean (yantra spawns no processes).
 - ✅ Audit pass filed.
-
-> Full M8 closes when yantra adds remote-host support and registers the verified
-> pin via `sandhi_rpc_set_default_tls_policy` on the session's base URL.
 
 ### v1.0 criteria
 

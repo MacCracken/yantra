@@ -22,6 +22,33 @@ var _yantra_appium_port = 4723;
 fn yantra_mobile_set_port(p): i64 { _yantra_appium_port = p; return 0; }
 fn yantra_mobile_port(): i64 { return _yantra_appium_port; }
 
+# Remote Appium endpoint (M8). Default 127.0.0.1 — local Appium, plain HTTP,
+# byte-identical to pre-0.8.2. `set_host` points at a remote Appium/cloud
+# device farm; a verified TLS pin switches it to HTTPS.
+var _yantra_mobile_host = "127.0.0.1";
+var _yantra_mobile_tls  = 0;
+var _yantra_mobile_pin_policy = 0;
+fn yantra_mobile_set_host(host): i64 { _yantra_mobile_host = host; return 0; }
+fn yantra_mobile_host(): i64 { return _yantra_mobile_host; }
+
+# Pin the Appium endpoint cert by a sigil-signed SPKI hash (Ed25519 / hybrid),
+# mirroring the web verbs. On a good signature: switch to HTTPS + register the
+# pin so every per-action call enforces it. Returns 1 / 0 (YANTRA_ERR_VERIFY).
+fn yantra_mobile_set_tls_pin_ed25519(spki_hex, ed_sig, ed_pk): i64 {
+    var pol = yantra_tls_pin_verify_ed25519(spki_hex, ed_sig, ed_pk);
+    if (pol == 0) { return 0; }
+    _yantra_mobile_pin_policy = pol;
+    _yantra_mobile_tls = 1;
+    return 1;
+}
+fn yantra_mobile_set_tls_pin_hybrid(spki_hex, ed_sig, ed_pk, mldsa_sig, mldsa_pk): i64 {
+    var pol = yantra_tls_pin_verify_hybrid(spki_hex, ed_sig, ed_pk, mldsa_sig, mldsa_pk);
+    if (pol == 0) { return 0; }
+    _yantra_mobile_pin_policy = pol;
+    _yantra_mobile_tls = 1;
+    return 1;
+}
+
 # Optional iOS simulator target (appium:deviceName / appium:platformVersion).
 # XCUITest needs a concrete simulator; set these before opening an "ios" session
 # when the default pick isn't right. 0 = omit (let Appium choose).
@@ -154,6 +181,7 @@ fn yantra_mobile_open(platform, app_id): i64 {
     # wd_connect_timeout with a 7-min budget. It must outlast the iOS
     # appium:wdaLaunchTimeout (default 6 min) so Appium finishes the WDA build
     # before yantra gives up on the POST /session.
+    _wd_set_endpoint(_yantra_mobile_host, _yantra_mobile_tls, _yantra_mobile_pin_policy);
     var attempt = 1;
     var n = _yantra_open_attempts_get();
     var wd = 0;

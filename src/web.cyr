@@ -33,6 +33,36 @@ fn yantra_web_set_cdp_port(p): i64 { _yantra_cdp_port = p; return 0; }
 fn yantra_web_cdp_port(): i64 { return _yantra_cdp_port; }
 fn yantra_web_set_wd_port(p): i64 { _yantra_wd_port = p; return 0; }
 
+# Remote WebDriver endpoint (M8). Default 127.0.0.1 — local driver, plain HTTP,
+# byte-identical to pre-0.8.2. `set_host` points at a remote grid; a verified
+# TLS pin (below) switches it to HTTPS. Only the WebDriver browsers
+# (chrome/firefox/webkit/safari) honor these — chromium/CDP is localhost-only.
+var _yantra_web_host = "127.0.0.1";
+var _yantra_web_tls  = 0;
+var _yantra_web_pin_policy = 0;
+fn yantra_web_set_host(host): i64 { _yantra_web_host = host; return 0; }
+fn yantra_web_host(): i64 { return _yantra_web_host; }
+
+# Pin the WebDriver endpoint cert by a sigil-signed SPKI hash. Verifies the
+# signature (Ed25519, or hybrid Ed25519+ML-DSA-65); on success switches the
+# endpoint to HTTPS and registers the pin so every per-action call enforces it
+# (via sandhi's endpoint-keyed default TLS-policy registry). Returns 1 on a
+# good signature, else 0 (YANTRA_ERR_VERIFY). See src/security.cyr.
+fn yantra_web_set_tls_pin_ed25519(spki_hex, ed_sig, ed_pk): i64 {
+    var pol = yantra_tls_pin_verify_ed25519(spki_hex, ed_sig, ed_pk);
+    if (pol == 0) { return 0; }
+    _yantra_web_pin_policy = pol;
+    _yantra_web_tls = 1;
+    return 1;
+}
+fn yantra_web_set_tls_pin_hybrid(spki_hex, ed_sig, ed_pk, mldsa_sig, mldsa_pk): i64 {
+    var pol = yantra_tls_pin_verify_hybrid(spki_hex, ed_sig, ed_pk, mldsa_sig, mldsa_pk);
+    if (pol == 0) { return 0; }
+    _yantra_web_pin_policy = pol;
+    _yantra_web_tls = 1;
+    return 1;
+}
+
 # ── auto-wait knobs ────────────
 # Playwright's defining decision: actions wait for the element to be
 # actionable before operating. We poll over the wire rather than sleeping
@@ -300,6 +330,7 @@ fn _web_open_cdp(port): i64 {
 
 # Open a WebDriver session with bounded retry. Returns a registered session or 0.
 fn _web_wd_open(port, caps): i64 {
+    _wd_set_endpoint(_yantra_web_host, _yantra_web_tls, _yantra_web_pin_policy);
     var attempt = 1;
     var n = _yantra_open_attempts_get();
     var wd = 0;

@@ -6,6 +6,17 @@
 
 ## Version
 
+**0.8.2** — 2026-06-16. **M8 complete — F-2 endpoint cert auth wired end-to-end.**
+Remote-host support (`yantra_web_set_host` / `yantra_mobile_set_host`, default
+127.0.0.1) + sigil-verified HTTPS cert pinning
+(`yantra_web_set_tls_pin_ed25519`/`_hybrid` + mobile equivalents): verify a
+sigil-signed SPKI pin → switch endpoint to HTTPS → register via sandhi 1.6.3's
+`sandhi_rpc_set_default_tls_policy` so every per-action call enforces it. Only
+the WebDriver/Appium path; chromium/CDP stays localhost. Localhost sessions
+byte-identical (default `http://127.0.0.1:<port>`). `tests/m8.tcyr` **21/21**
+(base-URL construction + sandhi registry roundtrip). All green (smoke/unit/m5/m8/
+lint/fmt/distlib). M8 audit `docs/audit/2026-06-15-audit.md` fully closed.
+
 **0.8.1** — 2026-06-15. **Toolchain → Cyrius 6.2.12** (from 6.2.11); bundled
 **sandhi 1.6.2 → 1.6.3**, **sigil 3.7.13 → 3.7.14**. sandhi 1.6.3 adds an
 endpoint-keyed default TLS-policy registry (`sandhi_rpc_set_default_tls_policy`),
@@ -229,11 +240,11 @@ WebDriver), M3 (Android Appium), M4 (iOS XCUITest).
 - `src/runtime.cyr` — **M5 resilience surface**: structured errors
   (`yantra_last_error`/`_str`), session registry + auto-teardown, retry/backoff
   config, tracing-span helpers, shared sleep. **Live (M5).**
-- `src/security.cyr` — **M8 transport security**: sigil-verified cert pins
+- `src/security.cyr` — **M8 transport security**: sigil-verified cert-pin gate
   (`yantra_tls_pin_verify_ed25519`/`_hybrid` → `sandhi_tls_policy_new_pinned`).
-  Verification gate live + tested. The sandhi-side application hook landed in
-  1.6.3 (`sandhi_rpc_set_default_tls_policy`, issue archived); remaining is
-  yantra-side remote-host support + registering the verified pin.
+  Wrapped by the web/mobile `set_tls_pin_*` verbs (0.8.2), which switch the
+  endpoint to HTTPS and register the pin via `sandhi_rpc_set_default_tls_policy`
+  on the connect path. **Live (M8); tested in `tests/m8.tcyr`.**
 - `src/protocol/cdp.cyr` — Chrome DevTools Protocol over `ws.cyr`: discovery
   GET, command build/escape, response matching, eval/navigate/connect/close.
   **Live (M1).**
@@ -375,16 +386,15 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
    (`examples/web-consumer/login.tcyr`, `examples/mobile-consumer/android.tcyr` /
    `ios.tcyr`). Also dropped the 0.6.2 macOS blocking-connect workaround (sandhi
    1.6.2 Darwin-ported the connect/timeout paths).
-8. **M8 — Security hardening** (first pass v0.8.0; sandhi blocker cleared v0.8.1).
-   🔒 **Partial.** Audit filed; no-shell-out + error-surface clean; **F-1 fixed**
-   (CDP escaper escapes the full C0 range); **F-2 verification half** built +
-   tested (`src/security.cyr`; `tests/m8.tcyr` 14/14; CI gates m5+m8). The sandhi
-   blocker is **resolved** (1.6.3 `sandhi_rpc_set_default_tls_policy`, 6.2.12).
-   **Remaining for full M8 (yantra-side only):** remote-host support (host
-   hardcoded to 127.0.0.1) + register the verified pin via that registry on the
-   connect path.
-9. **v1.0** — remaining: complete M8 (F-2 end-to-end), mobile Appium parity
-   benchmark numbers (`scripts/parity-appium.py`, web numbers already published),
-   and the knife article. All five backends live, M5/M6/M7 done.
+8. **M8 — Security hardening** (v0.8.0–v0.8.2). ✅ **DONE.** Audit
+   (`docs/audit/2026-06-15-audit.md`) fully closed: no-shell-out + error-surface
+   clean; **F-1** (CDP escaper escapes the full C0 range); **F-2** (sigil-verified
+   HTTPS cert pinning — remote-host support + verify-then-register via sandhi
+   1.6.3's `sandhi_rpc_set_default_tls_policy`, enforced per-action). `src/security.cyr`
+   + web/mobile `set_host`/`set_tls_pin_*` verbs; `tests/m8.tcyr` 21/21; CI gates
+   m5+m8. Localhost byte-identical.
+9. **v1.0** — remaining: mobile Appium parity benchmark numbers
+   (`scripts/parity-appium.py`, web numbers already published) and the knife
+   article. All five backends live; M5/M6/M7/M8 done.
 
 Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.

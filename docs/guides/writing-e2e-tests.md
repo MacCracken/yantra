@@ -131,6 +131,32 @@ headless Chromium, chromedriver, geckodriver, WebKitWebDriver, an Android
 emulator, and an iOS simulator — all gating in CI. Use those files as worked
 references for each backend.
 
+## Remote endpoints + cert pinning
+
+By default yantra talks to a driver/Appium on `127.0.0.1` over plain HTTP. To
+drive a **remote** Selenium grid or Appium cloud, set the host before opening:
+
+```cyrius
+yantra_web_set_host("grid.example.com");     # WebDriver browsers
+yantra_mobile_set_host("appium.example.com"); # Appium
+```
+
+For HTTPS endpoints, pin the certificate by a **sigil-signed** SPKI hash — yantra
+verifies the signature (so a tampered/substituted pin is rejected), switches the
+endpoint to HTTPS, and enforces the pin on *every* request:
+
+```cyrius
+# spki_hex signed with your trusted Ed25519 key; ed_sig (64B) + ed_pk (32B).
+if (yantra_web_set_tls_pin_ed25519(spki_hex, ed_sig, ed_pk) == 0) {
+    # signature did not verify — yantra_last_error() == YANTRA_ERR_VERIFY
+}
+yantra_web_open("chrome");   # now drives https://grid.example.com:9515, pinned
+```
+
+There's a hybrid (Ed25519 + ML-DSA-65, post-quantum) variant
+(`yantra_web_set_tls_pin_hybrid`) and the `yantra_mobile_set_tls_pin_*` pair.
+Pinning applies to the WebDriver/Appium path only; `chromium`/CDP is localhost.
+
 ## See also
 
 - [Migrating from Playwright](migrating-from-playwright.md)

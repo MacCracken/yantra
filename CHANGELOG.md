@@ -4,6 +4,35 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-06-16
+
+> **M8 complete — F-2 endpoint cert auth wired end-to-end.** Remote-host support
+> + sigil-verified HTTPS cert pinning, enforced on every per-action call via
+> sandhi 1.6.3's endpoint-keyed policy registry. Localhost sessions are
+> byte-identical to before. Additive public API only.
+
+### Added
+- **Remote WebDriver/Appium endpoints.** `yantra_web_set_host(host)` /
+  `yantra_web_host()` and `yantra_mobile_set_host(host)` / `yantra_mobile_host()`
+  — default `127.0.0.1` (unchanged). Lets a session target a remote Selenium grid
+  / Appium cloud. WebDriver browsers (chrome/firefox/webkit/safari) + mobile
+  (android/ios) only; chromium/CDP stays localhost.
+- **Sigil-verified HTTPS cert pinning (F-2).** `yantra_web_set_tls_pin_ed25519` /
+  `yantra_web_set_tls_pin_hybrid` and the `yantra_mobile_set_tls_pin_*` pair —
+  verify a sigil-signed SPKI cert-pin (Ed25519, or hybrid Ed25519 + ML-DSA-65)
+  and, on a good signature, switch the endpoint to HTTPS and register the policy
+  via `sandhi_rpc_set_default_tls_policy` so **every per-action call** to the
+  remote endpoint enforces the pin. Bad signature → no change, `YANTRA_ERR_VERIFY`.
+  This closes M8 F-2 (audit `docs/audit/2026-06-15-audit.md`). `tests/m8.tcyr`
+  now covers base-URL construction (localhost unchanged; remote → `https://host:port`)
+  and the sandhi registry roundtrip — **21/21** offline.
+
+### Changed
+- `_wd_base_url` (`src/protocol/webdriver.cyr`) is now host/scheme-aware
+  (`_wd_set_endpoint` + `_wd_apply_pin`); defaults reproduce
+  `http://127.0.0.1:<port>` exactly, so the live localhost e2e paths are
+  unaffected.
+
 ## [0.8.1] - 2026-06-15
 
 > **Toolchain → 6.2.12; the M8 F-2 sandhi blocker is resolved.** Bundled sandhi

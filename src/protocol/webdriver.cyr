@@ -27,19 +27,52 @@ fn wd_handle_new(base, sid): i64 {
     return wd;
 }
 
-# "http://127.0.0.1:<port>" — sandhi_wd_* take a base URL string.
+# Endpoint config for the next wd_connect / wd_connect_timeout. The web and
+# mobile open paths set these from their per-surface config right before
+# connecting; the defaults reproduce the pre-0.8.2 localhost behaviour exactly
+# (http://127.0.0.1, no pin), so localhost sessions are unchanged.
+var _wd_host = "127.0.0.1";
+var _wd_use_tls = 0;
+var _wd_pin_policy = 0;
+
+fn _wd_set_endpoint(host, use_tls, policy): i64 {
+    _wd_host = host;
+    _wd_use_tls = use_tls;
+    _wd_pin_policy = policy;
+    return 0;
+}
+
+# "http://<host>:<port>" — or "https://…" when TLS is on. sandhi_wd_* take a
+# base URL string. Default host/tls give "http://127.0.0.1:<port>" as before.
 fn _wd_base_url(port): i64 {
-    var buf = alloc(40);
-    var o = _cdp_b_cstr(buf, 0, "http://127.0.0.1:");
+    var buf = alloc(strlen(_wd_host) + 24);
+    var o = 0;
+    if (_wd_use_tls != 0) { o = _cdp_b_cstr(buf, 0, "https://"); }
+    else                  { o = _cdp_b_cstr(buf, 0, "http://"); }
+    o = _cdp_b_cstr(buf, o, _wd_host);
+    store8(buf + o, 58);   # ':'
+    o = o + 1;
     o = _cdp_b_int(buf, o, port);
     store8(buf + o, 0);
     return buf;
+}
+
+# Register the verified pin policy (if any) for this base URL so every
+# per-action sandhi_wd_* / sandhi_ap_* call to the endpoint enforces it —
+# sandhi 1.6.3's endpoint-keyed default TLS-policy registry. No-op when no pin
+# is set; plain-HTTP/localhost URLs ignore the policy, so localhost is unchanged.
+fn _wd_apply_pin(base): i64 {
+    if (_wd_pin_policy != 0) {
+        sandhi_rpc_set_default_tls_policy(base, _wd_pin_policy);
+    }
+    return 0;
 }
 
 # Open a session against the driver on <port> with the given capabilities
 # JSON. Returns a wd handle (base_url, session_id) or 0 on failure.
 fn wd_connect(port, caps_json): i64 {
     var base = _wd_base_url(port);
+    _wd_apply_pin(base);
     var resp = sandhi_wd_new_session(base, caps_json);
     if (sandhi_rpc_ok(resp) == 0) { return 0; }
     var sid = sandhi_wd_extract_session_id(resp);
@@ -69,6 +102,7 @@ fn wd_last_fail_status(): i64 { return _wd_dbg_status; }
 # sessionId ourselves. Returns a wd handle (base, session_id) or 0.
 fn wd_connect_timeout(port, caps_json, total_ms): i64 {
     var base = _wd_base_url(port);
+    _wd_apply_pin(base);
     var url = alloc(strlen(base) + 16);
     var o = _cdp_b_cstr(url, 0, base);
     o = _cdp_b_cstr(url, o, "/session");

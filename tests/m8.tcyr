@@ -106,6 +106,33 @@ fn main() {
     assert(yantra_tls_pin_verify_ed25519(0, sig, pk) == 0, "null spki rejected");
     assert_eq(yantra_last_error(), YANTRA_ERR_NULL, "null spki -> NULL error");
 
+    # F-2 end-to-end wiring (0.8.2): remote-host base URL + endpoint registry.
+    # Default (localhost) base URL is byte-identical to pre-0.8.2.
+    _wd_set_endpoint("127.0.0.1", 0, 0);
+    assert_streq(_wd_base_url(9515), "http://127.0.0.1:9515", "default base_url unchanged");
+    # Remote + TLS -> https scheme + host.
+    _wd_set_endpoint("grid.example.com", 1, 0);
+    assert_streq(_wd_base_url(4444), "https://grid.example.com:4444", "remote https base_url");
+    _wd_set_endpoint("127.0.0.1", 0, 0);
+
+    # Host setter/getter roundtrips.
+    yantra_web_set_host("grid.example.com");
+    assert_streq(yantra_web_host(), "grid.example.com", "yantra_web_set_host roundtrips");
+
+    # set_tls_pin verifies, enables HTTPS, and stashes the policy (re-sign first —
+    # the roundtrip above tampered `sig`).
+    ed25519_sign(sk, spki, strlen(spki), sig);
+    assert_eq(yantra_web_set_tls_pin_ed25519(spki, sig, pk), 1, "web set_tls_pin verifies + enables");
+    assert_eq(yantra_mobile_set_tls_pin_ed25519(spki, sig, pk), 1, "mobile set_tls_pin verifies + enables");
+
+    # The application mechanism: sandhi's endpoint-keyed default-policy registry
+    # (sandhi 1.6.3) stores and returns the verified policy by base URL.
+    var pol2 = yantra_tls_pin_verify_ed25519(spki, sig, pk);
+    assert(pol2 != 0, "re-verify pin -> policy");
+    sandhi_rpc_set_default_tls_policy("https://grid.example.com:4444", pol2);
+    assert_eq(sandhi_rpc_get_default_tls_policy("https://grid.example.com:4444"), pol2,
+              "sandhi registry stores + returns the policy by base URL");
+
     return assert_summary();
 }
 
