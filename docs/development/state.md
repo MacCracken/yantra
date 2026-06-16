@@ -334,6 +334,34 @@ round trip was pinned at ~40ms by Nagle/delayed-ACK → ~0.3ms after), and a
 **5ms auto-wait poll** interval (navigate was ~43ms on a 50ms poll → ~19ms).
 The Playwright column is reproduced, never fabricated.
 
+## Benchmarks — mobile parity (Android UiAutomator2 vs Appium-Python)
+
+Measured 2026-06-16 on one Linux box (KVM), android-34 / google_apis / x86_64
+emulator, same `com.android.settings` workload, same local Appium 3.5 +
+UiAutomator2 server. yantra: `programs/benchmarks-mobile.cyr android`.
+Appium-Python (`Appium-Python-Client`): `scripts/parity-appium.py`.
+
+| Operation | yantra (UiAutomator2) | Appium-Python | Note |
+|-----------|----------------------:|--------------:|------|
+| `open(session)` | ~2.59 s | ~2.31 s | one-shot; dominated by the Appium driver/session setup |
+| `source(page xml)` | ~224 ms | ~188 ms | read-only round trip — the clean apples-to-apples metric |
+| `find(clickable)` | — | ~88 ms | yantra folds find into `tap`; no standalone find verb |
+| `tap` | ~534 ms (1×) | n/a | yantra `tap` = find+actionable+click; the Appium harness's `tap×20` hit a UiAutomator2 internal click error (stale element after navigation) |
+
+**Honest read:** mobile is **near parity**, and that's expected — *both* yantra
+and the Python client drive the **same** Appium/UiAutomator2 server, so the
+device round trip dominates and client overhead is small (yantra ~15–20% heavier
+on these two ops). Mobile's win is structural (no separate framework / runner /
+CI path — one `.tcyr` on `cyrius test`), not raw speed; the raw-speed advantage
+shows on **web**, where yantra speaks CDP directly (~3× on the flow) vs
+Playwright's heavier client. The Appium column is reproduced, never fabricated.
+
+> **iOS column pending.** `cyrius bench` (`lib/bench.cyr`) reads 0 on arm64-macOS
+> (cyrius issue `2026-06-16-macos-bench-measurement-zero-after-clock-fix`), and
+> iOS only runs on macOS — so the yantra iOS column waits on that fix. The Appium
+> iOS baseline is captured (open ~3.45 s, source ~458 ms, find ~91 ms on an
+> iOS 26.5 sim). The Android numbers above are unaffected (Linux clock is fine).
+
 ## Dependencies
 
 Declared in `cyrius.cyml`:

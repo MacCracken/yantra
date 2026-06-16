@@ -1,0 +1,114 @@
+# programs/benchmarks-mobile.cyr — yantra's MOBILE parity benchmark (the Cyrius
+# side). Mirrors programs/benchmarks.cyr (web) for the mobile backends: times the
+# same per-operation workload as scripts/parity-appium.py against the SAME app
+# over the SAME local Appium server, so the two columns are comparable.
+#
+# Build + run (needs a booted device/sim + Appium on :4723, like the e2e):
+#   appium &
+#   cyrius build programs/benchmarks-mobile.cyr build/yantra-bench-mobile
+#   ./build/yantra-bench-mobile android      # Android emulator (UiAutomator2)
+#   ./build/yantra-bench-mobile              # iOS sim (XCUITest, default)
+#
+# Rigorous, repeatable metrics: session OPEN (one-shot — dominated by Appium
+# driver install / WDA build/attach) and the read-only page-SOURCE round trip
+# (the mobile analog of the web `eval`). `tap` mutates app state (cells
+# navigate), so it is NOT iterated — one functional tap is timed for a round-trip
+# sample, with the same apples-to-apples caveat as the web `click`. The Appium
+# column is produced by scripts/parity-appium.py — never fabricated.
+#
+# NOTE: on arm64-macOS lib/bench.cyr reports 0 (cyrius issue
+# 2026-06-16-macos-bench-measurement-zero-after-clock-fix), so the iOS column is
+# pending that fix; the Android column runs correctly on Linux.
+
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/bayan.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
+include "lib/thread.cyr"
+include "lib/thread_local.cyr"
+include "lib/sigil.cyr"
+include "lib/args.cyr"
+include "lib/bench.cyr"
+
+include "src/main.cyr"
+include "src/runtime.cyr"
+include "src/security.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+var _msess = 0;
+
+# Zero-arg wrapper over the global session (Cyrius has no closures).
+fn _bm_source() { return yantra_mobile_source(_msess); }
+
+fn _bm_run(label, fp, n): i64 {
+    var b = bench_new(label);
+    bench_run(b, fp, n);
+    bench_report(b);
+    return 0;
+}
+
+fn main() {
+    alloc_init();
+    args_init();
+
+    # Platform from argv[1]: starts with 'a' (97) => android; else iOS (default).
+    var is_android = 0;
+    if (argc() > 1) { if (load8(argv(1)) == 97) { is_android = 1; } }
+
+    var plat = 0;
+    var app = 0;
+    var tapsel = 0;
+    if (is_android == 1) {
+        plat = "android";
+        app = "com.android.settings";
+        tapsel = "//*[@clickable='true']";
+        println("=== yantra mobile parity benchmark (Android / UiAutomator2) ===");
+    } else {
+        yantra_mobile_set_ios_device("iPhone 17", "26.5");
+        plat = "ios";
+        app = "com.apple.Preferences";
+        tapsel = "//XCUIElementTypeCell";
+        println("=== yantra mobile parity benchmark (iOS / XCUITest) ===");
+    }
+    println("");
+
+    var b_open = bench_new("mobile.open(session)");
+    bench_start(b_open);
+    _msess = yantra_mobile_open(plat, app);
+    bench_stop(b_open);
+    if (_msess == 0) {
+        println("No live Appium/device — skipping. Start: appium & + boot a device.");
+        return 0;
+    }
+    bench_report(b_open);
+
+    println("yantra per-operation round trip:");
+    _bm_run("mobile.source(page xml)", &_bm_source, 20);
+
+    # One functional tap (mutates state — not iterated; see header).
+    var b_tap = bench_new("mobile.tap (1x, functional)");
+    bench_start(b_tap);
+    yantra_tap(_msess, tapsel);
+    bench_stop(b_tap);
+    bench_report(b_tap);
+
+    yantra_close(_msess);
+
+    println("");
+    println("Appium column: PLATFORM=<plat> python3 scripts/parity-appium.py on");
+    println("the same device; drop its numbers beside these. Not fabricated here.");
+    return 0;
+}
+
+var exit_code = main();
+yantra_exit(exit_code);
