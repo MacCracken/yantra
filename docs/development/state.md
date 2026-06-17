@@ -6,6 +6,14 @@
 
 ## Version
 
+**1.0.0** — 2026-06-16. **Stable.** All five backends live + gating, auto-waiting,
+resilience (M5), CI matrix (M6), docs/examples (M7), security audit + sigil cert
+pinning (M8), published benchmarks (web ~3× / mobile parity), 46-verb public API
+frozen ([ADR 0002](../adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)), knife
+article shipped (`docs/articles/draw-the-line-after.md`). No code change from
+0.9.0 — the stability tag on the frozen surface + the article. Forward plan
+(1.x): [roadmap.md](roadmap.md).
+
 **0.9.0** — 2026-06-16. **Public API freeze for a clean 1.0.0.** The 46 public
 `yantra_*` verbs are frozen as the 1.0.0 surface — no new verbs / signature
 changes / renames / removals until 1.0.0 (bug fixes, internal refactors, docs,
@@ -415,43 +423,20 @@ _None yet. yantra is a library for downstream `.tcyr` tests. Expected first cons
 
 ## Next
 
-See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence:
+1.0.0 is out; the M0–M8 milestone history is in
+[CHANGELOG.md](../../CHANGELOG.md). The forward plan lives in
+[roadmap.md](roadmap.md). **1.x** (additive, non-breaking — the frozen 46-verb
+surface only grows), priority order:
 
-1. **M1 — Chromium CDP backend** (shipped v0.2.1). ✅ **DONE** — `src/protocol/cdp.cyr`
-   + `src/web.cyr` live, `tests/e2e/chromium-smoke.tcyr` green against headless
-   Chromium, bundled into `dist/yantra.cyr`, and Playwright parity benchmarked
-   (see Benchmarks above — yantra ~3× on the flow). Full milestone closed.
-2. **M2 — Firefox + WebKit WebDriver backends** (shipped v0.3.0; migrated onto
-   `sandhi_wd_*` in v0.4.0). ✅ **DONE** — e2e 9/9 against chromedriver (same
-   wire for geckodriver/webkitwebdriver); also routes `"chrome"`.
-3. **M3 — Android Appium backend** (v0.4.0). ✅ **Implemented** — `src/mobile.cyr`
-   on `sandhi_wd_*`/`sandhi_ap_*`; compile+link verified. **Live e2e pending an
-   Android emulator + Appium server** (M6 device matrix).
-4. **M4 — iOS Appium backend** (shipped v0.5.0). ✅ **LIVE** — `yantra_mobile_open("ios",…)`
-   drives a real iOS 26.5 simulator over Appium/XCUITest; e2e 4/4
-   (open → source → tap → close). Verified on `ecb` (arm64 macOS), cyrius 6.0.59.
-5. **M5 — auto-teardown + resilience** (shipped v0.6.0). ✅ **DONE** — registry +
-   `yantra_exit`/`teardown_all`, structured `yantra_last_error`, retry-on-transient,
-   tracing spans (`src/runtime.cyr`). Offline 14/14; verified across web + iOS.
-6. **M6 — CI device matrix** (shipped v0.6.2). ✅ **DONE** — all five backends
-   gate green on every push/PR (Chromium/CDP, chromedriver, Firefox, WebKit,
-   Android, iOS); `setup-cyrius` OS/arch-aware; bench-history CSV artifact.
-7. **M7 — Docs + Examples** (shipped v0.7.0). ✅ **DONE** — four guides
-   (`docs/guides/getting-started` / `writing-e2e-tests` / `migrating-from-playwright`
-   / `migrating-from-appium`) + index, and a runnable example per backend
-   (`examples/web-consumer/login.tcyr`, `examples/mobile-consumer/android.tcyr` /
-   `ios.tcyr`). Also dropped the 0.6.2 macOS blocking-connect workaround (sandhi
-   1.6.2 Darwin-ported the connect/timeout paths).
-8. **M8 — Security hardening** (v0.8.0–v0.8.2). ✅ **DONE.** Audit
-   (`docs/audit/2026-06-15-audit.md`) fully closed: no-shell-out + error-surface
-   clean; **F-1** (CDP escaper escapes the full C0 range); **F-2** (sigil-verified
-   HTTPS cert pinning — remote-host support + verify-then-register via sandhi
-   1.6.3's `sandhi_rpc_set_default_tls_policy`, enforced per-action). `src/security.cyr`
-   + web/mobile `set_host`/`set_tls_pin_*` verbs; `tests/m8.tcyr` 21/21; CI gates
-   m5+m8. Localhost byte-identical.
-9. **M-freeze — public API frozen** (shipped v0.9.0). ✅ **DONE** — 46 verbs
-   frozen for 1.0.0 (ADR 0002). No surface changes until 1.0.0.
-10. **v1.0** — remaining: the **knife article** only. Then a clean tag. Mobile +
-    web parity published; all five backends live; M5–M8 + freeze done.
+1. **Full actionability auto-waiting** — wait for visible + stable + enabled, not
+   just existence + `readyState`. Closes the `click` benchmark caveat above; the
+   top 1.x item.
+2. **Safari live coverage** — `yantra_web_open("safari")` is routed but not yet
+   e2e-verified; add a macOS Safari e2e so all targets are green, not just five.
+3. **Richer element-state verbs** (additive) — `is_visible` / `text` / `attr`, so
+   consumers assert without dropping to `eval_str`.
+4. **Consumer-driven polish** — shaped by the first downstream adopter.
 
-Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.
+Post-1.0 / v2 candidates (native mobile transport — own the layer below Appium;
+Browser-BiDi; recorder/codegen; component-testing; browser auto-download) are
+parked in the roadmap; a real v2 scoping is a later conversation.

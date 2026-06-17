@@ -45,7 +45,10 @@ yantra_tap(session, "@id/login_button");
 
 ## Status
 
-**0.6.2.** All five planned backends **live**, each gated by its own CI e2e job:
+**1.0.0 — stable.** The 46-verb public API is **frozen**
+([ADR 0002](docs/adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)) — additive
+only from here. All five planned backends **live**, each gated by its own CI e2e
+job:
 - **Chromium via CDP** (M1) — `yantra_web_open("chromium")`, with a Playwright
   parity benchmark.
 - **Firefox / WebKit / Chrome / Safari via W3C WebDriver** (M2) —
@@ -67,6 +70,14 @@ Chromium + chromedriver + Firefox + WebKit on Linux, Android on an emulator
 (KVM), iOS on a macOS-runner simulator. Parity harnesses
 (`scripts/parity-playwright.mjs`, `scripts/parity-appium.py`) produce the
 Playwright / Appium comparison columns. See [the roadmap](docs/development/roadmap.md).
+
+**Docs + examples (M7), security audit + sigil-verified cert pinning (M8)** are
+done; web parity is ~3× (vs Playwright) and mobile is parity (vs Appium — both
+ride the same Appium server). Start at [`docs/guides/`](docs/guides/).
+
+**The thesis, with receipts:** [*Every other language draws the line before what
+you can see. Cyrius draws it after.*](docs/articles/draw-the-line-after.md) — why
+UI automation belongs in the language, and the numbers behind it.
 
 ## Build
 

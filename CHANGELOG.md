@@ -4,6 +4,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-16
+
+> **1.0.0 — stable.** All five backends live and gating in CI (Chromium/CDP,
+> Chrome/Firefox/WebKit/Safari WebDriver, Android/iOS Appium), Playwright-style
+> auto-waiting, auto-teardown + structured errors + retry (M5), CI device matrix
+> (M6), docs + examples + migration guides (M7), security audit + sigil-verified
+> cert pinning (M8), published benchmarks (web ~3× vs Playwright; mobile parity
+> vs Appium). The 46-verb public API is frozen
+> ([ADR 0002](docs/adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)): from here,
+> the surface only grows — additively, never breaking, until a 2.0 conversation.
+
+### Added
+- **Knife article** — `docs/articles/draw-the-line-after.md`: *"Every other
+  language draws the line before what you can see. Cyrius draws it after."* The
+  receipts piece for [ADR 0001](docs/adr/0001-yantra-is-a-library-not-a-framework.md)
+  (web ~3× vs Playwright, mobile parity vs Appium, 0 consumer deps). Mirrored to
+  `agnosticos/docs/articles/` and linked from the README.
+
+### Notes
+- No code changes from 0.9.0 — 1.0.0 is the stability tag on the frozen 0.9.0
+  surface plus the article. See the roadmap for the forward-facing 1.x plan.
+
 ## [0.9.0] - 2026-06-16
 
 > **API freeze for a clean 1.0.0.** The 46 public `yantra_*` verbs are frozen as
