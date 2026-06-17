@@ -334,33 +334,40 @@ round trip was pinned at ~40ms by Nagle/delayed-ACK → ~0.3ms after), and a
 **5ms auto-wait poll** interval (navigate was ~43ms on a 50ms poll → ~19ms).
 The Playwright column is reproduced, never fabricated.
 
-## Benchmarks — mobile parity (Android UiAutomator2 vs Appium-Python)
+## Benchmarks — mobile parity (yantra vs Appium-Python)
 
-Measured 2026-06-16 on one Linux box (KVM), android-34 / google_apis / x86_64
-emulator, same `com.android.settings` workload, same local Appium 3.5 +
-UiAutomator2 server. yantra: `programs/benchmarks-mobile.cyr android`.
-Appium-Python (`Appium-Python-Client`): `scripts/parity-appium.py`.
+Same per-op workload as `scripts/parity-appium.py`, same app, same local Appium 3.5
+server. yantra: `programs/benchmarks-mobile.cyr <platform>`. Appium-Python:
+`scripts/parity-appium.py`. Both columns reproduced, never fabricated.
 
-| Operation | yantra (UiAutomator2) | Appium-Python | Note |
-|-----------|----------------------:|--------------:|------|
-| `open(session)` | ~2.59 s | ~2.31 s | one-shot; dominated by the Appium driver/session setup |
+**Android** (2026-06-16, Linux/KVM, android-34 x86_64 emulator, UiAutomator2,
+`com.android.settings`):
+
+| Operation | yantra | Appium-Python | Note |
+|-----------|-------:|--------------:|------|
+| `open(session)` | ~2.59 s | ~2.31 s | one-shot; dominated by Appium session setup |
 | `source(page xml)` | ~224 ms | ~188 ms | read-only round trip — the clean apples-to-apples metric |
 | `find(clickable)` | — | ~88 ms | yantra folds find into `tap`; no standalone find verb |
-| `tap` | ~534 ms (1×) | n/a | yantra `tap` = find+actionable+click; the Appium harness's `tap×20` hit a UiAutomator2 internal click error (stale element after navigation) |
+| `tap` | ~534 ms (1×) | n/a | the Appium harness's `tap×20` hit a UiAutomator2 internal click error |
 
-**Honest read:** mobile is **near parity**, and that's expected — *both* yantra
-and the Python client drive the **same** Appium/UiAutomator2 server, so the
-device round trip dominates and client overhead is small (yantra ~15–20% heavier
-on these two ops). Mobile's win is structural (no separate framework / runner /
-CI path — one `.tcyr` on `cyrius test`), not raw speed; the raw-speed advantage
-shows on **web**, where yantra speaks CDP directly (~3× on the flow) vs
-Playwright's heavier client. The Appium column is reproduced, never fabricated.
+**iOS** (2026-06-16, ecb arm64 macOS, iPhone 17 / iOS 26.5 sim, XCUITest,
+`com.apple.Preferences`; cyrius 6.2.15 — the macOS clock+bench fixes):
 
-> **iOS column pending.** `cyrius bench` (`lib/bench.cyr`) reads 0 on arm64-macOS
-> (cyrius issue `2026-06-16-macos-bench-measurement-zero-after-clock-fix`), and
-> iOS only runs on macOS — so the yantra iOS column waits on that fix. The Appium
-> iOS baseline is captured (open ~3.45 s, source ~458 ms, find ~91 ms on an
-> iOS 26.5 sim). The Android numbers above are unaffected (Linux clock is fine).
+| Operation | yantra | Appium-Python | Note |
+|-----------|-------:|--------------:|------|
+| `open(session)` | ~12.1 s | ~3.47 s | **not comparable** — WDA-build-state dependent: yantra paid the cold `xcodebuild` WDA build, Appium then attached to the built WDA |
+| `source(page xml)` | ~455 ms | ~459 ms | read-only round trip — the clean apples-to-apples metric → **parity** |
+| `find(clickable)` | — | ~86 ms | folded into `tap` |
+| `tap` | ~1.10 s (1×) | ~2.41 s (×20) | different methodology (yantra find+actionable+click once vs Appium click-pre-found ×20) |
+
+**Honest read:** mobile is **near parity** on the clean read round trip (source:
+Android 224 vs 188 ms, iOS 455 vs 459 ms) — and that's expected, because *both*
+yantra and the Python client drive the **same** Appium server, so the device
+round trip dominates and client overhead is small. Mobile's win is **structural**
+(no separate framework / runner / CI path — one `.tcyr` on `cyrius test`), not
+raw speed; the raw-speed advantage shows on **web**, where yantra speaks CDP
+directly (~3× on the flow) vs Playwright's heavier client. `open`/`tap` are not
+clean client comparisons (WDA build state; differing tap methodology).
 
 ## Dependencies
 
@@ -421,8 +428,9 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
    1.6.3's `sandhi_rpc_set_default_tls_policy`, enforced per-action). `src/security.cyr`
    + web/mobile `set_host`/`set_tls_pin_*` verbs; `tests/m8.tcyr` 21/21; CI gates
    m5+m8. Localhost byte-identical.
-9. **v1.0** — remaining: mobile Appium parity benchmark numbers
-   (`scripts/parity-appium.py`, web numbers already published) and the knife
-   article. All five backends live; M5/M6/M7/M8 done.
+9. **v1.0** — remaining: the **knife article**. Mobile Appium parity numbers
+   **done** (Android + iOS, in Benchmarks above — near parity on the read round
+   trip; both ride Appium). Web parity published (~3×). All five backends live;
+   M5/M6/M7/M8 done; benchmark criterion met.
 
 Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.
