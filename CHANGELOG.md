@@ -4,6 +4,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-16
+
+> **API freeze for a clean 1.0.0.** The 46 public `yantra_*` verbs are frozen as
+> the 1.0.0 surface — no new verbs, signature changes, renames, or removals
+> until 1.0.0 (bug fixes / internal refactors / docs / pin bumps only). See
+> [ADR 0002](docs/adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md). No code
+> changes; freeze + docs pass.
+
+### Changed
+- **Public API frozen** (ADR 0002). The surface that shipped through 0.8.3 is the
+  1.0.0 surface; it is enumerated in the ADR. Between 0.9.0 and 1.0.0 the verb
+  list does not move.
+
+### Docs
+- ADR 0002 added (the freeze + the enumerated frozen surface).
+- README "what a test looks like" example updated to the M5 `yantra_exit(code)`
+  teardown idiom (was raw `syscall(60, …)`), matching the guides/examples.
+
+### Remaining for 1.0.0
+- The **knife article** (*"Why UI Automation Belongs in Your Language"*); after
+  it lands, 1.0.0 is a clean tag. All five backends live; M5–M8 done; web +
+  mobile parity published.
+
 ## [0.8.3] - 2026-06-16
 
 > **Mobile parity numbers landed (v1.0 benchmark criterion met).** Toolchain →

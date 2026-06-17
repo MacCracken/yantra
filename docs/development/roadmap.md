@@ -214,3 +214,10 @@ The other four backends all talk JSON-RPC over HTTP POST, which is why they batc
 - **Playwright-parity auto-download** — vendor-managed browser binaries a la Playwright's install step (probably belongs behind an `ark` flag, not inside yantra itself)
 - **Recorder / codegen** — generate `.tcyr` from a recorded session (Playwright Codegen analog)
 - **Component testing mode** — framework-less component mount + action + assert, targeting just a Chromium snippet without a full app. Out of scope if it turns into a framework; in scope if it's a pure library helper
+- **Native mobile transport (own the layer below Appium)** — the mobile analog of the web CDP win. The published mobile parity is *structural*: yantra and Appium-Python both ride the same Appium server, so the device round trip dominates and nobody wins (source: Android 224 vs 188 ms, iOS 455 vs 459 ms — see state.md Benchmarks). A real mobile speed advantage (and honest "Nx vs Appium" numbers) only comes from owning the transport end to end:
+  - **Direct on-device agent** — drive UiAutomator2-server / WDA directly over an adb/socket-forwarded channel, no Appium broker. Modest win alone (still pays the on-device a11y-tree dump), but the stepping stone.
+  - **AgnosOS on jailbroken Android** — a yantra-native on-device agent: targeted hierarchy queries instead of full-tree dumps, input-layer event injection, an owned wire format. This is the mobile CDP. Hardware-bound; where the divergent numbers actually live.
+  - **Owned Android emulator image** — fork AOSP/QEMU, bake the agent into the system image, talk to it over a qemu-pipe/vsock below UiAutomator2. Great for reproducible CI control; big lift but stands on open source.
+  - **iOS note:** an owned *iOS emulator* is out of scope — Apple's stack is closed (Simulator is a macOS userland shim, not a VM); reimplementing XNU/SpringBoard/AMFI is a multi-year, legally fraught program. iOS stays "owned physical device + jailbreak + on-device agent."
+
+  All of the above are device/OS programs, not library changes — they don't alter yantra's shape, they give it a transport to *own*. Benchmark only where you own the transport.

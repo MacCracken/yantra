@@ -23,7 +23,7 @@ fn test_login_redirects_to_dashboard() {
 }
 
 var exit_code = test_login_redirects_to_dashboard();
-syscall(60, exit_code);
+yantra_exit(exit_code);   # tears down any leaked session, then exits
 ```
 
 Same assertions, same runner, same `cyrius test` invocation — yantra just gave the test the ability to drive the browser.

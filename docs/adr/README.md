@@ -20,3 +20,4 @@ Decisions about yantra — what we chose, the context, and the consequences we a
 ## Index
 
 - [0001 — yantra is a library, not a framework](0001-yantra-is-a-library-not-a-framework.md) — `cyrius test` stays the runner; yantra adds the verbs `.tcyr` files use to drive browsers and mobile devices.
+- [0002 — public API frozen at 0.9.0 for 1.0.0](0002-public-api-frozen-at-0.9.0-for-1.0.0.md) — the 46 public `yantra_*` verbs are the 1.0.0 surface; no additions/changes until 1.0.0 (knife article is the last gate).

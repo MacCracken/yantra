@@ -6,6 +6,14 @@
 
 ## Version
 
+**0.9.0** — 2026-06-16. **Public API freeze for a clean 1.0.0.** The 46 public
+`yantra_*` verbs are frozen as the 1.0.0 surface — no new verbs / signature
+changes / renames / removals until 1.0.0 (bug fixes, internal refactors, docs,
+pin bumps only). [ADR 0002](../adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)
+enumerates the frozen surface. No code changes (freeze + docs pass; README
+example moved to the `yantra_exit` idiom). **Remaining for 1.0.0: the knife
+article.** All five backends live; M5–M8 done; web + mobile parity published.
+
 **0.8.3** — 2026-06-16. **Mobile parity numbers landed; toolchain → 6.2.15.** The
 v1.0 "published benchmark comparison" criterion is met: Android + iOS
 yantra-vs-Appium numbers measured and published (Benchmarks section). New
@@ -441,9 +449,9 @@ See [roadmap.md](roadmap.md) for the full milestone sequence. Immediate sequence
    1.6.3's `sandhi_rpc_set_default_tls_policy`, enforced per-action). `src/security.cyr`
    + web/mobile `set_host`/`set_tls_pin_*` verbs; `tests/m8.tcyr` 21/21; CI gates
    m5+m8. Localhost byte-identical.
-9. **v1.0** — remaining: the **knife article**. Mobile Appium parity numbers
-   **done** (Android + iOS, in Benchmarks above — near parity on the read round
-   trip; both ride Appium). Web parity published (~3×). All five backends live;
-   M5/M6/M7/M8 done; benchmark criterion met.
+9. **M-freeze — public API frozen** (shipped v0.9.0). ✅ **DONE** — 46 verbs
+   frozen for 1.0.0 (ADR 0002). No surface changes until 1.0.0.
+10. **v1.0** — remaining: the **knife article** only. Then a clean tag. Mobile +
+    web parity published; all five backends live; M5–M8 + freeze done.
 
 Knife article ("Why UI Automation Belongs in Your Language" or similar) lands when yantra has at least one live backend with a benchmark against the Playwright or Appium equivalent on the same workload — earliest opportunity is M1 closeout.
