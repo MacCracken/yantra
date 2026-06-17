@@ -4,6 +4,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-06-16
+
+> **Mobile parity numbers landed (v1.0 benchmark criterion met).** Toolchain →
+> 6.2.15, which carries the macOS clock + bench fixes that unblocked timing on
+> arm64-macOS. Android + iOS yantra-vs-Appium numbers measured and published.
+> No public-API changes.
+
+### Added
+- **`programs/benchmarks-mobile.cyr`** — the Cyrius side of the mobile parity
+  benchmark (mirrors `programs/benchmarks.cyr` for web). Takes a platform arg
+  (`android` | `ios`, default iOS); times session open + page-source round trip +
+  a functional tap against the same Appium server `scripts/parity-appium.py`
+  uses, so the columns are comparable.
+- **Published mobile parity** (`docs/development/state.md` → Benchmarks). On the
+  clean read round trip (`source`), yantra is at **parity** with Appium-Python —
+  Android ~224 vs ~188 ms, iOS ~455 vs ~459 ms — as expected, since both ride the
+  same Appium server. Mobile's win is structural (one `.tcyr` on `cyrius test`,
+  no separate framework/runner/CI path); the raw-speed win is web (~3× via CDP).
+  This meets the v1.0 "published benchmark comparison" criterion (web + mobile).
+
+### Changed
+- **Toolchain pin → 6.2.15** (from 6.2.12). Bundled **sigil 3.7.14 → 3.8.0**
+  (sandhi 1.6.3 / sakshi 2.3.0 / bayan 1.0.1 unchanged). 6.2.13 + 6.2.15 fixed
+  two arm64-macOS stdlib bugs found here — the monotonic clock (`syscall(228)`
+  not Darwin-routed) and the `lib/bench.cyr` measurement zeroing — so
+  `cyrius bench` and wall-clock timing now work on macOS. Build, unit, M5, M8,
+  lint, fmt, distlib all green on the new pin.
+
 ## [0.8.2] - 2026-06-16
 
 > **M8 complete — F-2 endpoint cert auth wired end-to-end.** Remote-host support

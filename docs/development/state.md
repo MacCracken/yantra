@@ -6,6 +6,17 @@
 
 ## Version
 
+**0.8.3** — 2026-06-16. **Mobile parity numbers landed; toolchain → 6.2.15.** The
+v1.0 "published benchmark comparison" criterion is met: Android + iOS
+yantra-vs-Appium numbers measured and published (Benchmarks section). New
+`programs/benchmarks-mobile.cyr` (`android`|`ios`). On the clean read round trip
+(`source`), yantra is at **parity** with Appium-Python (Android 224 vs 188 ms,
+iOS 455 vs 459 ms) — both ride the same Appium server, so mobile's win is
+structural, not raw speed (web is ~3× via CDP). Pin 6.2.12 → **6.2.15** carries
+the two arm64-macOS stdlib fixes found here (monotonic clock + `lib/bench.cyr`
+measurement); `cyrius bench` works on macOS now. Bundled **sigil 3.7.14 → 3.8.0**.
+No public-API changes. All green (smoke/unit/m5/m8/lint/fmt/distlib).
+
 **0.8.2** — 2026-06-16. **M8 complete — F-2 endpoint cert auth wired end-to-end.**
 Remote-host support (`yantra_web_set_host` / `yantra_mobile_set_host`, default
 127.0.0.1) + sigil-verified HTTPS cert pinning
@@ -137,8 +148,10 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.2.12` (in `cyrius.cyml [package].cyrius`) — refreshed off
-  the 6.0.x line in 0.6.3 (6.2.11), bumped to 6.2.12 in 0.8.1. Carries forward
+- **Cyrius pin**: `6.2.15` (in `cyrius.cyml [package].cyrius`) — refreshed off
+  the 6.0.x line in 0.6.3 (6.2.11), then 6.2.12 (0.8.1) → 6.2.15 (0.8.3, which
+  added the arm64-macOS monotonic-clock + `lib/bench.cyr` fixes found by yantra).
+  Carries forward
   the 6.0.59 Darwin `net.cyr` port and
   the 6.0.66 `cbt` macOS fixes; ships all platforms (x86_64/aarch64 ×
   linux/macos + windows), so it stays the cross-platform floor. Build/test/lint/
@@ -167,7 +180,7 @@ backends stubbed pending transport-layer depth.
   framing fix the M2 WebDriver backend depends on, plus the 1.6.3 endpoint-keyed
   default TLS-policy registry — `sandhi_rpc_set_default_tls_policy` — that
   resolved the M8 F-2 per-action cert-pin gap).
-- **sigil 3.7.14 requires** `thread.cyr` + `thread_local.cyr` included before
+- **sigil 3.8.0 requires** `thread.cyr` + `thread_local.cyr` included before
   it. Both are listed in `cyrius.cyml [deps] stdlib`. yantra **now includes
   sigil** (M8) via `src/security.cyr` for the sigil-verified cert-pin gate — so
   this ordering is a current constraint (the `[lib]` bundle and `programs/smoke.cyr`
@@ -376,7 +389,7 @@ Declared in `cyrius.cyml`:
 - **Cyrius stdlib** (comprehensive set — see manifest; `thread` +
   `thread_local` added for the sigil 3.6.0 requirement)
 - **sakshi** 2.3.0 — structured logging / tracing (bundled in snapshot)
-- **sigil** 3.7.14 — hybrid (Ed25519 + ML-DSA-65) signature verification;
+- **sigil** 3.8.0 — hybrid (Ed25519 + ML-DSA-65) signature verification;
   **now included** (M8) by `src/security.cyr` for sigil-verified cert pins
   (requires `thread` + `thread_local` before it, both in `[deps] stdlib`)
 - **sandhi** 1.6.3 — HTTP/1.1+2 + WebDriver/Appium RPC layer; 1.6.3 adds the
