@@ -35,6 +35,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `base64.cyr`/`json.cyr` fold. All nine `cyrius lib sync` steps in
   `.github/workflows/{ci,release}.yml`, plus the Quick Start / README /
   CONTRIBUTING setup snippets, now pass `--full`.
+- **iOS e2e CI — generation-match the runner's Xcode/iOS** instead of pinning
+  Xcode 16.4 / iOS 18.x. GitHub's `macos-latest` image moved to **Xcode 26.x with
+  iOS 26.x runtimes only**; the removed iOS 18.x runtime made the `E2E (iOS /
+  XCUITest)` job fail at simulator selection (`No iOS 18.x runtime on this
+  runner`, exit 1). The boot step now derives the **active Xcode's major version**
+  and targets the newest iOS runtime of that same generation (now 26.x — the combo
+  yantra is verified on live at `ecb`: iPhone 17 / iOS 26.5 / xcuitest 11.9),
+  self-adjusting for a future Xcode 27 / iOS 27 image. See
+  [architecture 005](docs/architecture/005-ios-ci-is-non-blocking.md).
 
 ### Fixed
 - **`yantra_version()` reported `1.0.0`** — bumped to `1.0.1` with the pin.

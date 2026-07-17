@@ -349,7 +349,9 @@ before the src modules, for `security.cyr`).
 - `tests/e2e/ios-appium-smoke.tcyr` — M4 acceptance E2E. **4/4** both locally
   (iOS 26.5 sim on `ecb`) and on the **hosted `macos-latest` runner** — open
   Settings → source → tap cell → close. The CI job (gating) runs a runner-matched
-  copy: it pins Xcode 16.4 + an iOS 18.x sim, prebuilds WDA, and injects
+  copy: it generation-matches the runner's active Xcode to a same-generation iOS
+  sim (now Xcode 26.x / iOS 26.x — the runner image dropped the 18.x/16.4 pair the
+  job used through 1.0.1), prebuilds WDA, and injects
   `set_ios_udid`/`set_ios_headless`/`set_no_reset`/`set_ios_prebuilt_wda` (the
   committed file targets the maintainer's local sim). See architecture 005.
 - `programs/benchmarks.cyr` — incumbent-parity benchmark program (yantra vs

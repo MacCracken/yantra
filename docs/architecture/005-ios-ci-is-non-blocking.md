@@ -1,12 +1,21 @@
 # 005 — The iOS CI job is non-blocking (hosted-runner Appium/sandhi flakiness)
 
 > **RESOLVED (0.6.2).** The `E2E (iOS / XCUITest)` job is now **gating** —
-> `continue-on-error` has been removed. With the matched Xcode 16.4 / iOS 18.x
-> pair, prebuilt WebDriverAgent, `appium:noReset`, and yantra's `connect_ms=0`
-> blocking-connect workaround, the full e2e passes **4/4** on the hosted runner
-> (open Settings → page source → tap a native cell → close). It was briefly
-> soft-gated (this note's original subject) while that stack was worked out. The
-> background below is kept for the next person who hits hosted-runner iOS pain.
+> `continue-on-error` has been removed. With a matched Xcode↔iOS-runtime
+> generation pair, prebuilt WebDriverAgent, and `appium:noReset`, the full e2e
+> passes **4/4** on the hosted runner (open Settings → page source → tap a native
+> cell → close). It was briefly soft-gated (this note's original subject) while
+> that stack was worked out. The background below is kept for the next person who
+> hits hosted-runner iOS pain.
+>
+> **Updated (1.0.1).** The hosted `macos-latest` image moved to **Xcode 26.x with
+> iOS 26.x runtimes only** — the iOS 18.x runtime / Xcode 16.4 this job pinned was
+> removed, so the job started failing at the runtime-selection step (`No iOS 18.x
+> runtime on this runner`). The boot step no longer hard-codes a generation: it
+> derives the **active Xcode's major version** and targets the newest iOS runtime
+> of that same generation (now 26.x — the combo yantra is verified on live at
+> `ecb`: iPhone 17 / iOS 26.5 / xcuitest 11.9), self-adjusting for a future
+> Xcode 27 / iOS 27 image.
 
 > **Why** the job *carried* `continue-on-error: true` for a few iterations while
 > the GitHub hosted runner's Appium/sandhi flakiness was chased. Soft-gate
@@ -27,9 +36,11 @@ So neither the yantra library logic nor the e2e test is the problem.
 Getting the hosted-runner session even *startable* took a stack of fixes, each a
 real, reusable capability (all omit-by-default yantra verbs, opted into by CI):
 
-- **Matched Xcode↔runtime generation** — pin Xcode 16.4 + target the iOS 18.x
-  runtime (the image's bleeding-edge iOS 26.x runtimes are paired with Xcode 26;
-  mixing them flaked the simulator boot with an empty-status timeout).
+- **Matched Xcode↔runtime generation** — derive the active Xcode's major version
+  and target the newest iOS runtime of that same generation (now Xcode 26.x /
+  iOS 26.x; through 1.0.1 it was Xcode 16.4 / iOS 18.x, until the runner image
+  dropped the 18.x/16.4 pair). A cross-generation mix (Xcode-N binary vs iOS-M
+  runtime) flakes the simulator boot with an empty-status timeout.
 - **`appium:udid`** (`yantra_mobile_set_ios_udid`) — pin the exact booted sim.
 - **`appium:isHeadless`** (`yantra_mobile_set_ios_headless`) — a display-less
   runner can't do Appium's "restart with the Simulator window visible" path.

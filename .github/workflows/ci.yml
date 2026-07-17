@@ -237,11 +237,11 @@ jobs:
     runs-on: macos-latest
     needs: [build-and-test]
     # Gating. The full XCUITest e2e passes 4/4 on the hosted runner (open Settings
-    # → page source → tap a native cell → close) on a matched Xcode 16.4 / iOS 18.x
-    # pair with a prebuilt WebDriverAgent + appium:noReset, and yantra's
-    # connect_ms=0 blocking-connect workaround for the cyrius/sandhi Darwin gap
-    # (cyrius issue 2026-06-06-sandhi-nonblocking-connect-not-darwin-ported). It
-    # was briefly soft-gated while that was chased — see architecture 005.
+    # → page source → tap a native cell → close) on a matched Xcode 26.x / iOS 26.x
+    # pair (was Xcode 16.4 / iOS 18.x through 1.0.1, until the runner image dropped
+    # the 18.x/16.4 generation) with a prebuilt WebDriverAgent + appium:noReset.
+    # The generation is derived from the active Xcode at run time — see the boot
+    # step below and architecture 005.
     steps:
       - uses: actions/checkout@v4
 
@@ -264,7 +264,7 @@ jobs:
           # `xcodebuild` (slow ~4min AND flaky on hosted runners — it intermittently
           # stalls; and yantra's HTTP client struggles with the long silent wait).
           # The session then uses appium:usePreinstalledWDA + the prebuilt .app.
-          # Requires iOS 17+/WDA v13+ (we target iOS 18.x). See the
+          # Requires iOS 17+/WDA v13+ (we target iOS 26.x). See the
           # appium-xcuitest run-prebuilt-wda guide. NOTE: download-wda CREATES
           # --outdir and errors if it already exists ("<dir> already exists"), so
           # do NOT pre-create it. iOS/sim flags per `download-wda --help`.
@@ -281,21 +281,26 @@ jobs:
         # (iPhone 17 / iOS 26.5). The hosted runner ships a different Xcode/iOS,
         # so pick a runner sim and run a device-matched copy.
         run: |
-          # Match the Xcode and iOS-runtime GENERATION. The macOS runner ships
-          # both Xcode 16.4 (default) and Xcode 26.x, plus iOS 18.x AND 26.x
-          # runtimes. iOS 26 runtimes are generation-paired with Xcode 26; running
-          # them under the default Xcode 16.4 is an unsupported mismatch that
-          # yields flaky empty-status boot timeouts ("failed to finish booting
-          # after 120s. Original status:") — runner-images #12777/#13317, confirmed
-          # by a cited research sweep. So pin Xcode 16.4 and target the newest
-          # iOS 18.x runtime (its matched pair), NOT `tail -1` (newest = iOS 26.x).
-          if [ -d /Applications/Xcode_16.4.app ]; then
-            sudo xcode-select -s /Applications/Xcode_16.4.app
+          # Match the Xcode and iOS-runtime GENERATION. The hosted macOS runner
+          # now ships Xcode 26.x as the default with iOS 26.x simulator runtimes;
+          # the older Xcode 16.4 / iOS 18.x pair this job used through 1.0.1 was
+          # dropped from the image (runner-images moved to Xcode 26). Generation
+          # pairing still matters — an Xcode-N binary against an iOS-M (N != M)
+          # runtime flakes the simulator boot with an empty-status timeout
+          # ("failed to finish booting after 120s. Original status:",
+          # runner-images #12777/#13317). So derive the ACTIVE Xcode's major
+          # version and target the newest iOS runtime of that SAME generation —
+          # self-adjusting when the image later moves to Xcode 27 / iOS 27. Prefer
+          # the newest installed Xcode 26.x for determinism; else keep the default.
+          XC="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$XC" ]; then
+            sudo xcode-select -s "$XC"
           fi
           xcodebuild -version || true
-          VER="$(xcrun simctl list runtimes available | grep -Eo 'iOS 18\.[0-9]+' | sed 's/iOS //' | sort -V | tail -1)"
+          XMAJ="$(xcodebuild -version | sed -n 's/^Xcode \([0-9][0-9]*\).*/\1/p')"
+          VER="$(xcrun simctl list runtimes available | grep -Eo "iOS ${XMAJ}\.[0-9]+" | sed 's/iOS //' | sort -V | tail -1)"
           if [ -z "$VER" ]; then
-            echo "No iOS 18.x runtime on this runner; available runtimes:"; xcrun simctl list runtimes available
+            echo "No iOS ${XMAJ}.x runtime (matched to Xcode ${XMAJ}) on this runner; available runtimes:"; xcrun simctl list runtimes available
             exit 1
           fi
           # First available iPhone under that runtime; pin its exact UDID (Appium
