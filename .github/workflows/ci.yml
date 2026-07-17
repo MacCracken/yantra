@@ -73,18 +73,38 @@ jobs:
       - name: Sync vendored lib
         run: cyrius lib sync --full
 
+      # Pin a known-good Chrome instead of leaning on whatever the runner image
+      # happens to ship. The preinstalled google-chrome drifts with the
+      # ubuntu-latest image and was the "Chromium did not come up" break; this
+      # mirrors the setup-firefox step in the e2e-firefox job below.
+      - name: Setup Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
       - name: Launch headless Chromium
         run: |
-          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium-browser || command -v chromium)"
-          echo "using $CHROME"
-          "$CHROME" --headless=new --disable-gpu --no-sandbox \
+          CHROME="${{ steps.setup-chrome.outputs.chrome-path }}"
+          [ -x "$CHROME" ] || CHROME="$(command -v chrome || command -v google-chrome || command -v google-chrome-stable || command -v chromium-browser || command -v chromium)"
+          echo "using $CHROME ($("$CHROME" --version 2>&1))"
+          rm -rf /tmp/yc-ci
+          # --disable-dev-shm-usage: CI runners give /dev/shm ~64MB; without it
+          # the browser can crash before the DevTools port ever opens.
+          "$CHROME" --headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage \
             --user-data-dir=/tmp/yc-ci --remote-debugging-port=9222 about:blank \
             >/tmp/chromium.log 2>&1 &
-          for i in $(seq 1 50); do
+          CHROME_PID=$!
+          for i in $(seq 1 60); do
+            if ! kill -0 "$CHROME_PID" 2>/dev/null; then
+              echo "Chromium exited before the DevTools port opened"; cat /tmp/chromium.log; exit 1
+            fi
             curl -sf --max-time 2 http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break
-            sleep 0.3
+            sleep 0.5
           done
-          curl -sf http://127.0.0.1:9222/json/version || { echo "Chromium did not come up"; cat /tmp/chromium.log; exit 1; }
+          curl -sf http://127.0.0.1:9222/json/version \
+            || { echo "Chromium did not come up"; echo "--- chromium.log ---"; cat /tmp/chromium.log; exit 1; }
 
       - name: Run E2E (M1 acceptance)
         run: cyrius test tests/e2e/chromium-smoke.tcyr

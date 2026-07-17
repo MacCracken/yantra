@@ -4,6 +4,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **E2E (Chromium / CDP) CI — pin Chrome instead of trusting the runner image.**
+  The `e2e-chromium` job launched whatever `google-chrome` the `ubuntu-latest`
+  image happened to preinstall; when that browser drifted it never opened its
+  DevTools port and the step died with `Chromium did not come up` (exit 1),
+  failing the release gate too (`release.yml` runs `ci.yml` wholesale). The job
+  now installs a known-good Chrome via `browser-actions/setup-chrome@v1` —
+  mirroring the `setup-firefox` step in `e2e-firefox` — and the launch adds
+  `--disable-dev-shm-usage` (runners give `/dev/shm` ~64 MB; without it the
+  browser can crash before the port opens), fails fast if the process exits
+  early, and dumps `chromium.log` on timeout. CDP still binds `127.0.0.1:9222`
+  (unchanged; yantra's WS handshake sends no `Origin`, so no
+  `--remote-allow-origins` is needed).
+
 ## [1.0.1] - 2026-07-17
 
 > **Toolchain refresh — Cyrius 6.4.64.** Pin moves off the 6.2.x line; the bundled
