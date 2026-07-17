@@ -4,6 +4,49 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-17
+
+> **Toolchain refresh — Cyrius 6.4.64.** Pin moves off the 6.2.x line; the bundled
+> stdlib libs yantra rides on advanced with the snapshot. No yantra source changes
+> beyond the version constant — the public API and all five backends are unchanged
+> (frozen surface, [ADR 0002](docs/adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)).
+
+### Changed
+- **Toolchain pin → 6.4.64** (from 6.2.15). `cyrius lib sync --full`'d against the
+  6.4.64 snapshot; offline suites, lint, fmt, and `distlib` all green on the new
+  toolchain (unit 2/2, M5 14/14, M8 21/21).
+- **Bundled stdlib libs advanced** (resolved from the snapshot via `[deps]
+  stdlib`, not git-pinned):
+  - **sandhi 1.6.3 → 1.9.0** — the HTTP/1.1+2 + WebDriver/Appium RPC layer M2
+    (WebDriver) and M3/M4 (Appium) ride on.
+  - **sigil 3.8.0 → 3.12.0** — hybrid (Ed25519 + ML-DSA-65) signature
+    verification; the M8 sigil-verified cert-pin gate (`src/security.cyr`) rides
+    it. `tests/m8.tcyr` still **21/21** (sign → verify → tamper-reject).
+  - **sakshi 2.3.0 → 2.4.6** — tracing spans (`yantra_trace_enable`).
+  - **bayan 1.0.1 → 1.1.0** — data-codec bundle (base64 + json + csv/u128/bigint/
+    toml/cyml) the CDP WebSocket handshake and WebDriver/Appium value tree ride on.
+- **CI/release lib-sync now uses `cyrius lib sync --full`.** On the 6.4.x wrapper
+  the plain (non-`--full`) sync narrowed to a core-stdlib subset (35 files) and no
+  longer copies the transport/composite libs yantra's include chain needs — `net`,
+  `ws`, `tls`, `sandhi`, `sigil`, `sakshi`, `bayan`, `dynlib`, `fdlopen`, `mmap`
+  (all declared in `[deps] stdlib`). Since vendored `lib/` is gitignored, a fresh
+  CI clone would otherwise fail the smoke build with `cannot open include file:
+  lib/sandhi.cyr` — the same class of fresh-sync break as the 0.6.3
+  `base64.cyr`/`json.cyr` fold. All nine `cyrius lib sync` steps in
+  `.github/workflows/{ci,release}.yml`, plus the Quick Start / README /
+  CONTRIBUTING setup snippets, now pass `--full`.
+
+### Fixed
+- **`yantra_version()` reported `1.0.0`** — bumped to `1.0.1` with the pin.
+
+### Verified
+- Offline on the 6.4.64 pin (freshly `--full`-synced `lib/`): smoke build + the
+  `CYRIUS_DCE=1` release-parity build, unit **2/2**, M5 **14/14**, M8 **21/21**,
+  `cyrius lint` **0 warnings** across all `src/*.cyr`, `cyrius fmt --check` clean,
+  `cyrius distlib` → `dist/yantra.cyr` **v1.0.1**. The five live e2e backends
+  validate in CI against live targets (unchanged flow); the `--full` sync fix is
+  what keeps those jobs building on the new pin.
+
 ## [1.0.0] - 2026-06-16
 
 > **1.0.0 — stable.** All five backends live and gating in CI (Chromium/CDP,

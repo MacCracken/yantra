@@ -29,7 +29,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Build artifacts
         run: |

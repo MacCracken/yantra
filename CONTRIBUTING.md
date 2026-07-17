@@ -9,7 +9,7 @@ library shape. See [ADR 0001](docs/adr/0001-yantra-is-a-library-not-a-framework.
 ## Setup
 
 ```bash
-cyrius lib sync        # sync vendored lib/ to the pin in cyrius.cyml
+cyrius lib sync --full   # sync vendored lib/ to the pin (--full pulls the transport libs)
 ```
 
 The toolchain version is pinned in `cyrius.cyml [package].cyrius`. Never

@@ -22,7 +22,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Lint
         run: |
@@ -71,7 +71,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Launch headless Chromium
         run: |
@@ -100,7 +100,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Launch chromedriver
         run: |
@@ -128,7 +128,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Setup Firefox
         uses: browser-actions/setup-firefox@v1
@@ -164,7 +164,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Install WebKitGTK driver
         run: |
@@ -197,7 +197,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Enable KVM
         run: |
@@ -249,7 +249,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -381,7 +381,7 @@ jobs:
         uses: ./.github/actions/setup-cyrius
 
       - name: Sync vendored lib
-        run: cyrius lib sync
+        run: cyrius lib sync --full
 
       - name: Run micro-benchmarks → CSV
         # Normalized (ns) one-row-per-bench history, AGNOS bench-history shape.

@@ -85,7 +85,7 @@ UI automation belongs in the language, and the numbers behind it.
 link-check it, and bundle with `cyrius distlib`.
 
 ```sh
-cyrius lib sync                                     # sync vendored lib/ to the pin
+cyrius lib sync --full                              # sync vendored lib/ to the pin (--full pulls transport libs)
 cyrius build programs/smoke.cyr build/yantra-smoke  # link-check
 cyrius test tests/yantra.tcyr                       # unit tests
 cyrius bench tests/yantra.bcyr                       # micro-benchmarks

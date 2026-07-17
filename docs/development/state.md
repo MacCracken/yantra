@@ -6,6 +6,22 @@
 
 ## Version
 
+**1.0.1** — 2026-07-17. **Toolchain refresh — Cyrius 6.4.64** (from 6.2.15). No
+yantra source changes beyond the `yantra_version()` constant; public API and all
+five backends unchanged (frozen surface, [ADR 0002](../adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)).
+Bundled libs advanced with the snapshot: **sandhi 1.6.3 → 1.9.0**, **sigil
+3.8.0 → 3.12.0**, **sakshi 2.3.0 → 2.4.6**, **bayan 1.0.1 → 1.1.0**.
+**CI/release lib-sync switched to `cyrius lib sync --full`**: on the 6.4.x wrapper
+the plain (non-`--full`) sync narrowed to a core-stdlib subset (35 files) and
+stopped copying the transport/composite libs yantra's include chain needs
+(`net`/`ws`/`tls`/`sandhi`/`sigil`/`sakshi`/`bayan`/`dynlib`/`fdlopen`/`mmap`,
+all declared in `[deps] stdlib`) — a fresh clone (vendored `lib/` is gitignored)
+would otherwise fail the smoke build with `cannot open include file:
+lib/sandhi.cyr` (same class of fresh-sync break as the 0.6.3 base64/json fold).
+All green offline on the new pin: smoke + `CYRIUS_DCE=1` release-parity build,
+unit 2/2, M5 14/14, M8 21/21, lint 0 warnings, fmt clean, distlib → v1.0.1. Live
+e2e (all five backends) validates in CI.
+
 **1.0.0** — 2026-06-16. **Stable.** All five backends live + gating, auto-waiting,
 resilience (M5), CI matrix (M6), docs/examples (M7), security audit + sigil cert
 pinning (M8), published benchmarks (web ~3× / mobile parity), 46-verb public API
@@ -164,15 +180,21 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.2.15` (in `cyrius.cyml [package].cyrius`) — refreshed off
-  the 6.0.x line in 0.6.3 (6.2.11), then 6.2.12 (0.8.1) → 6.2.15 (0.8.3, which
-  added the arm64-macOS monotonic-clock + `lib/bench.cyr` fixes found by yantra).
+- **Cyrius pin**: `6.4.64` (in `cyrius.cyml [package].cyrius`) — bumped off the
+  6.2.x line in 1.0.1 (from 6.2.15). Earlier: refreshed off the 6.0.x line in
+  0.6.3 (6.2.11), then 6.2.12 (0.8.1) → 6.2.15 (0.8.3, which added the arm64-macOS
+  monotonic-clock + `lib/bench.cyr` fixes found by yantra).
   Carries forward
   the 6.0.59 Darwin `net.cyr` port and
   the 6.0.66 `cbt` macOS fixes; ships all platforms (x86_64/aarch64 ×
   linux/macos + windows), so it stays the cross-platform floor. Build/test/lint/
   fmt/distlib verified green on it. Vendored `lib/` is gitignored and
-  materialized with `cyrius lib sync`. *Toolchain history (6.0.x):* **6.0.63**
+  materialized with **`cyrius lib sync --full`** — on the 6.4.x wrapper the plain
+  (non-`--full`) sync copies only a 35-file core-stdlib subset and skips the
+  transport/composite libs yantra needs (`net`/`ws`/`tls`/`sandhi`/`sigil`/
+  `sakshi`/`bayan`/`dynlib`/`fdlopen`/`mmap`, all declared in `[deps] stdlib`);
+  `--full` copies the whole snapshot. CI/release sync steps pass `--full`
+  accordingly. *Toolchain history (6.0.x):* **6.0.63**
   fixed the
   arm64-macOS `GETDENTS64` bug (`61` untranslated → `EBADF`) that made `cyrius lib
   sync` report `snapshot lib not found` on a populated dir (the earlier `cp`/cache
@@ -192,11 +214,11 @@ backends stubbed pending transport-layer depth.
   6.2.10's `net_connect_nb`). yantra's blocking-connect workaround in
   `wd_connect_timeout` was dropped post-0.6.3 (proper connect/recv timeouts
   restored — see Unreleased). No known toolchain gaps remain.
-- **Bundled sandhi**: 1.6.3 (carries the `Connection: close` Content-Length
-  framing fix the M2 WebDriver backend depends on, plus the 1.6.3 endpoint-keyed
-  default TLS-policy registry — `sandhi_rpc_set_default_tls_policy` — that
-  resolved the M8 F-2 per-action cert-pin gap).
-- **sigil 3.8.0 requires** `thread.cyr` + `thread_local.cyr` included before
+- **Bundled sandhi**: 1.9.0 (carries the `Connection: close` Content-Length
+  framing fix the M2 WebDriver backend depends on, plus the endpoint-keyed
+  default TLS-policy registry — `sandhi_rpc_set_default_tls_policy`, added in
+  1.6.3 — that resolved the M8 F-2 per-action cert-pin gap).
+- **sigil 3.12.0 requires** `thread.cyr` + `thread_local.cyr` included before
   it. Both are listed in `cyrius.cyml [deps] stdlib`. yantra **now includes
   sigil** (M8) via `src/security.cyr` for the sigil-verified cert-pin gate — so
   this ordering is a current constraint (the `[lib]` bundle and `programs/smoke.cyr`
@@ -235,7 +257,7 @@ An earlier revision of this section wrongly claimed M2–M4 were blocked on
 `lib/http.cyr` and missed `lib/sandhi.cyr`, the stdlib's full HTTP client.
 **Nothing is transport-blocked.**
 
-- **`lib/sandhi.cyr` (v1.6.2)** — the real HTTP client: a complete HTTP/1.1 +
+- **`lib/sandhi.cyr` (v1.9.0)** — the real HTTP client: a complete HTTP/1.1 +
   HTTP/2 stack. `sandhi_http_get/post/put/patch/delete/head(url, headers,
   body, len)`, full header management (`sandhi_headers_*`), **HTTPS/TLS**
   (`sandhi_conn_open(.., use_tls, sni_host)`, ALPN, TLS 1.3 0-RTT, session
@@ -243,7 +265,7 @@ An earlier revision of this section wrongly claimed M2–M4 were blocked on
   Response via `sandhi_http_status/body/body_len/headers/err_kind`. This is
   what **M2 (WebDriver)** and **M3/M4 (Appium)** ride on — POST + `Content-Type:
   application/json` + HTTPS are all present today.
-- **`lib/bayan.cyr` (v1.0.1)** — bundled data-codec lib; carries the tagged
+- **`lib/bayan.cyr` (v1.1.0)** — bundled data-codec lib; carries the tagged
   JSON value-tree (`json_v_parse`, `json_v_obj_get`, `json_v_arr_*`,
   `json_v_str/int/bool` — full nesting/arrays/typed values, carries
   WebDriver/Appium bodies cleanly) **and** base64 (`base64_encode`, used by the
@@ -404,14 +426,14 @@ Declared in `cyrius.cyml`:
 
 - **Cyrius stdlib** (comprehensive set — see manifest; `thread` +
   `thread_local` added for the sigil 3.6.0 requirement)
-- **sakshi** 2.3.0 — structured logging / tracing (bundled in snapshot)
-- **sigil** 3.8.0 — hybrid (Ed25519 + ML-DSA-65) signature verification;
+- **sakshi** 2.4.6 — structured logging / tracing (bundled in snapshot)
+- **sigil** 3.12.0 — hybrid (Ed25519 + ML-DSA-65) signature verification;
   **now included** (M8) by `src/security.cyr` for sigil-verified cert pins
   (requires `thread` + `thread_local` before it, both in `[deps] stdlib`)
-- **sandhi** 1.6.3 — HTTP/1.1+2 + WebDriver/Appium RPC layer; 1.6.3 adds the
-  endpoint-keyed default TLS-policy registry (`sandhi_rpc_set_default_tls_policy`)
-  the M8 F-2 cert-pin path needs (bundled in snapshot)
-- **bayan** 1.0.1 — data-codec bundle (base64 + json + csv/u128/bigint/toml/
+- **sandhi** 1.9.0 — HTTP/1.1+2 + WebDriver/Appium RPC layer; carries the
+  endpoint-keyed default TLS-policy registry (`sandhi_rpc_set_default_tls_policy`,
+  added in 1.6.3) the M8 F-2 cert-pin path needs (bundled in snapshot)
+- **bayan** 1.1.0 — data-codec bundle (base64 + json + csv/u128/bigint/toml/
   cyml); subsumes the former `base64.cyr` + `json.cyr` (bundled in snapshot)
 
 ## Consumers

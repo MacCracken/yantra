@@ -40,7 +40,7 @@ Project was scaffolded with `cyrius init yantra`. **Do not manually create proje
 ## Quick Start
 
 ```bash
-cyrius lib sync                                          # sync vendored lib/ to the pin
+cyrius lib sync --full                                   # sync vendored lib/ to the pin (--full pulls transport libs)
 cyrius build programs/smoke.cyr build/yantra-smoke       # link-check the include chain
 cyrius test tests/yantra.tcyr                            # unit tests
 cyrius bench tests/yantra.bcyr                           # micro-benchmarks
