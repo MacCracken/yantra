@@ -22,6 +22,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with `undefined function 'json_v_parse_str'` — loudly, not silently, since
   cyrius refuses to emit a binary with a reachable undefined function.
 
+### Changed
+- **Toolchain pin 6.4.64 → 6.5.1.** This is a hard ordering constraint, not a
+  routine catch-up: `cyrius lib sync` resolves `lib/` from the **pinned** cyrius
+  version's snapshot, and bayan 1.3.0 (which provides `json_v_parse_buf`) first
+  ships in cyrius **6.5.1**. Under the old 6.4.64 pin, CI synced bayan 1.1.0 and
+  the build failed with `undefined function 'json_v_parse_buf'`.
+  **yantra 1.0.2 must therefore be released AFTER cyrius 6.5.1**, and CI cannot
+  go green before that tag exists. Verified locally against bayan 1.3.0:
+  `programs/smoke.cyr` builds, and yantra/m5/m8 are 2 + 14 + 21 = 37 passed,
+  0 failed.
+
 - **E2E (Chromium / CDP) CI — pin Chrome instead of trusting the runner image.**
   The `e2e-chromium` job launched whatever `google-chrome` the `ubuntu-latest`
   image happened to preinstall; when that browser drifted it never opened its
