@@ -4,7 +4,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-07-29
+
 ### Fixed
+- **CDP JSON parsing called a bayan entry point that no longer exists.**
+  `src/protocol/cdp.cyr` used `json_v_parse_str(buf, len)` at two sites (the
+  `Target.getTargets` response walk and the WebDriver body array walk). bayan
+  **1.3.0** removed that name: in cyrius, `X_str` is a reserved
+  overload-dispatch suffix meaning "the `Str`-taking variant of `X`", and a
+  cstr+len form may never occupy it — the compiler was rewriting
+  `json_v_parse(someStr)` into a 1-argument call to the 2-argument
+  `json_v_parse_str` and binding `len` to garbage. The cstr+len forms are now
+  named `_buf`. Renamed both call sites to `json_v_parse_buf`, which has the
+  identical `(buf, len)` signature.
+
+  Without this, any consumer pulling yantra **and** bayan 1.3.0 fails to build
+  with `undefined function 'json_v_parse_str'` — loudly, not silently, since
+  cyrius refuses to emit a binary with a reachable undefined function.
+
 - **E2E (Chromium / CDP) CI — pin Chrome instead of trusting the runner image.**
   The `e2e-chromium` job launched whatever `google-chrome` the `ubuntu-latest`
   image happened to preinstall; when that browser drifted it never opened its
