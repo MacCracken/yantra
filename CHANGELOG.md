@@ -41,7 +41,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   2. **`cyrius distlib` failed outright on the new pin.** Since cyrius
      **6.5.14** the bundle self-check actually runs (before that it aborted with
      `cannot write output: /dev/null` and downgraded everything to a note), and
-     since **6.5.17** it compiles the bundle with the manifest's `[deps] stdlib`
+     since **6.5.16** it compiles the bundle with the manifest's `[deps] stdlib`
      prepended. Prepending a list missing `ws` and `sigil` meant the check hit
      three stdlib **enum** references and hard-errored — and unlike undefined
      *functions*, an undefined *variable* is a parse-time abort that
@@ -60,8 +60,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   cyrius 6.5.14 (6.5.13 clean); confirmed by flipping the single `[deps]` token
   inside that comment, which moves the parse from 17 → 27 leaves. The parser bug
   itself is upstream and still present in cyrius 6.5.29 — a standalone reproducer
-  and write-up are prepared for filing. The array now carries a `DO NOT` guard
-  comment so it cannot regress silently.
+  and write-up are prepared for filing. `cyrius.cyml` was also trimmed back to a
+  manifest — the version ledger and milestone narrative in its header moved to
+  the docs that own that material, and both arrays are now comment-free, which
+  removes the failure mode rather than documenting around it (111 → 61 lines).
 
 - **`yantra_version()` returned `"1.0.1"` on the 1.0.2 release.** The constant in
   `src/main.cyr` was not bumped with `VERSION`, so every consumer of
@@ -70,9 +72,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - **Toolchain pin 6.5.1 → 6.5.29.** Bundled libs advance with the snapshot:
-  **sandhi 1.9.0 → 1.9.10**, **sigil 3.12.1 → 3.12.9**, **sakshi 2.4.6 → 2.4.10**,
-  **bayan 1.3.0 → 1.4.2**. The snapshot also adds `async_macos.cyr`,
-  `thread_macos.cyr`, and a `unicode/` directory. No yantra source changes beyond
+  **sandhi 1.9.7 → 1.9.10**, **sigil 3.12.1 → 3.12.9**, **sakshi 2.4.7 → 2.4.10**,
+  **bayan 1.3.0 → 1.4.2** (deltas measured against the **6.5.1 snapshot**, the pin
+  this release replaces — not against the numbers 1.0.1 recorded, which were the
+  6.4.64 values and had never been refreshed when 1.0.2 moved the pin). The
+  snapshot adds exactly two files, `async_macos.cyr` and `thread_macos.cyr`; the
+  pre-existing `lib/unicode/` directory is unchanged apart from `_decode.cyr`. No
+  yantra source changes beyond
   the version constant; the public API and all five backends are unchanged
   (frozen surface, [ADR 0002](docs/adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)).
 - **Smoke-build static data dropped 13,407,072 → 796,384 bytes** (~16.8×) on the

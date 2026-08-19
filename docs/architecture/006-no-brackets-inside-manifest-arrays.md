@@ -1,9 +1,9 @@
 # 006 — A bracketed token inside a `cyrius.cyml` array silently truncates it
 
-> **Why** the `stdlib = [...]` array in `cyrius.cyml` carries a shouty `DO NOT`
-> comment forbidding `[deps]`-shaped text *inside the array* — including inside
-> comments. Recorded here because the failure is silent, the blast radius is
-> large, and the obvious reading of the file gives no hint of it.
+> **Why** the arrays in `cyrius.cyml` carry no comments at all, and why the note
+> above them says not to add any. Recorded here because the failure is silent,
+> the blast radius is large, and the obvious reading of the file gives no hint
+> of it.
 
 ## The quirk
 
@@ -44,7 +44,7 @@ clone (vendored `lib/` is gitignored) failed the smoke build with
 **2. `cyrius distlib` hard-failed on the 6.5.29 pin.** The bundle self-check
 became real in cyrius **6.5.14** (before that it aborted with
 `cannot write output: /dev/null` and downgraded everything to a note), and in
-**6.5.17** it started compiling the bundle with the manifest's `[deps] stdlib`
+**6.5.16** it started compiling the bundle with the manifest's `[deps] stdlib`
 prepended — the right question to ask. But prepending a *truncated* list left
 three stdlib enums undefined, and unlike an undefined **function** (which
 `--allow-undef` downgrades) an undefined **variable** is a parse-time abort that
@@ -70,22 +70,33 @@ manifest the check consulted was short.
   the regression.
 - `dist/yantra.deps` (distlib's generated sidecar) listed exactly **17** leaves —
   precisely the entries above the comment.
+- The **6.5.16** prepend boundary above was established **empirically**, by running
+  each installed toolchain's `distlib` against the corrected 27-leaf manifest:
+  6.5.14 and 6.5.15 fail, 6.5.16 onward pass. Note that cyrius's own source
+  comment in `cbt/commands.cyr` self-labels this change `v6.5.17`; that label is
+  off by one against the shipped tags. **Do not "correct" 6.5.16 back to 6.5.17
+  from reading that comment** — reproduce the bisect instead.
 - Decisive test: change the single token `[deps]` → plain prose *inside that
   comment*, changing nothing else. The parse moves **17 → 27** leaves and
   `distlib` passes.
 
 ## The rule
 
-**Never write a `[...]` section-header shape inside a `cyrius.cyml` array — not
-in a value, not in a trailing comment, not in a comment-only line.** Refer to
-sections in prose ("the deps stdlib list"), or put the comment *outside* the
-array. Trailing inline comments after an entry (`"net",  # sockets`) are fine as
-long as they contain no brackets.
+**Keep `cyrius.cyml` array bodies free of comments entirely.** The narrow rule is
+"no `[...]` section-header shape inside an array" — but the narrow rule requires
+every future editor to remember it, and "mention the section next to the list it
+describes" is the natural thing to write, which is how three independent repos
+hit this. Deleting the comments removes the failure mode instead of documenting
+around it.
+
+A manifest is a manifest, not a changelog or a ledger. Facts and pointers belong
+above the section; rationale, history, and version deltas belong in
+`CHANGELOG.md`, `docs/development/state.md`, and notes like this one.
 
 ## Status
 
 Fixed yantra-side in **1.0.3** by rewording the comment; the array now carries a
-guard comment so it cannot regress silently. The underlying parser bug is
+arrays comment-free so it cannot regress silently. The underlying parser bug is
 **upstream in cyrius** (confirmed present in 6.5.29) — comments should be
 stripped before header scanning. Not yet filed: a standalone reproducer and
 write-up are prepared. Until that fix ships, this rule stands for every
