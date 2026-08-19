@@ -19,51 +19,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [1.0.3] — 2026-08-19
 
 ### Fixed
-- **A bracketed token inside a comment inside `[deps] stdlib` silently truncated
-  the array — yantra declared 27 stdlib leaves and cyrius only ever saw 17.**
-  The cyml manifest parser scans for `[section]` headers *without stripping
-  comments first*, so the `[deps]` written inside an explanatory comment **in the
-  middle of the `stdlib = [...]` array** was read as a new section header and
-  terminated the array. Every leaf below that line — `net`, `ws`, `bayan`,
-  `sandhi`, `tls`, `dynlib`, `fdlopen`, `mmap`, `sakshi`, `sigil`, i.e. **the
-  entire transport chain** — was dropped from the parsed manifest.
+- **Comments inside the `cyrius.cyml` arrays truncated the dependency list.** A
+  bracketed token written inside a comment in the middle of `stdlib = [...]` ends
+  the array as far as the manifest parser is concerned, so only 17 of the 27
+  declared stdlib leaves were parsed — dropping the whole transport chain (`net`,
+  `ws`, `bayan`, `sandhi`, `tls`, `dynlib`, `fdlopen`, `mmap`, `sakshi`,
+  `sigil`). That is why `cyrius lib sync` appeared to need `--full` (recorded in
+  `state.md` since 1.0.1 as a wrapper quirk — it was not one) and why
+  `cyrius distlib` failed on the new pin once its bundle self-check began
+  prepending the declared list. The bundle itself was fine.
 
-  Two long-standing symptoms were the same bug:
-
-  1. **`cyrius lib sync` needed `--full`.** Plain sync vendors the *declared*
-     `[deps] stdlib` subset. Seeing only the 17 core leaves, it never copied the
-     transports, so a fresh clone failed the smoke build with `cannot open
-     include file: lib/sandhi.cyr`. 1.0.1 worked around this by switching CI and
-     the quick start to `cyrius lib sync --full` and recorded it in `state.md` as
-     a wrapper quirk. It was never a wrapper quirk. With the comment reworded,
-     plain `cyrius lib sync` now vendors **54** files and covers all ten
-     transports.
-  2. **`cyrius distlib` failed outright on the new pin.** Since cyrius
-     **6.5.14** the bundle self-check actually runs (before that it aborted with
-     `cannot write output: /dev/null` and downgraded everything to a note), and
-     since **6.5.16** it compiles the bundle with the manifest's `[deps] stdlib`
-     prepended. Prepending a list missing `ws` and `sigil` meant the check hit
-     three stdlib **enum** references and hard-errored — and unlike undefined
-     *functions*, an undefined *variable* is a parse-time abort that
-     `--allow-undef` cannot downgrade:
-
-     ```
-     error: dist/yantra.cyr:223: undefined variable 'SIG_ALG_ED25519'
-     error: dist/yantra.cyr:234: undefined variable 'SIG_ALG_HYBRID'
-     error: dist/yantra.cyr:604: undefined variable 'WS_OPEN'
-     error: distlib: the generated bundle does not compile
-     ```
-
-  The **bundle was never defective** — `dist/yantra.cyr` builds and runs against
-  a hand-written consumer that includes the stdlib and the bundle, reporting
-  `1.0.3`. Only the manifest the check consulted was truncated. Bisected to
-  cyrius 6.5.14 (6.5.13 clean); confirmed by flipping the single `[deps]` token
-  inside that comment, which moves the parse from 17 → 27 leaves. The parser bug
-  itself is upstream and still present in cyrius 6.5.29 — a standalone reproducer
-  and write-up are prepared for filing. `cyrius.cyml` was also trimmed back to a
-  manifest — the version ledger and milestone narrative in its header moved to
-  the docs that own that material, and both arrays are now comment-free, which
-  removes the failure mode rather than documenting around it (111 → 61 lines).
+  Fixed by trimming `cyrius.cyml` back to a manifest: both arrays are now
+  comment-free, and the version ledger and milestone narrative that had
+  accumulated in its header moved to the docs that own that material
+  (111 → 61 lines). Plain `cyrius lib sync` vendors 54 files and covers all ten
+  transports again.
 
 - **`yantra_version()` returned `"1.0.1"` on the 1.0.2 release.** The constant in
   `src/main.cyr` was not bumped with `VERSION`, so every consumer of
@@ -73,28 +43,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - **Toolchain pin 6.5.1 → 6.5.29.** Bundled libs advance with the snapshot:
   **sandhi 1.9.7 → 1.9.10**, **sigil 3.12.1 → 3.12.9**, **sakshi 2.4.7 → 2.4.10**,
-  **bayan 1.3.0 → 1.4.2** (deltas measured against the **6.5.1 snapshot**, the pin
-  this release replaces — not against the numbers 1.0.1 recorded, which were the
-  6.4.64 values and had never been refreshed when 1.0.2 moved the pin). The
-  snapshot adds exactly two files, `async_macos.cyr` and `thread_macos.cyr`; the
-  pre-existing `lib/unicode/` directory is unchanged apart from `_decode.cyr`. No
-  yantra source changes beyond
-  the version constant; the public API and all five backends are unchanged
-  (frozen surface, [ADR 0002](docs/adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)).
+  **bayan 1.3.0 → 1.4.2**; the snapshot adds `async_macos.cyr` and
+  `thread_macos.cyr`. No yantra source changes beyond the version constant; the
+  public API and all five backends are unchanged (frozen surface,
+  [ADR 0002](docs/adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)).
 - **Smoke-build static data dropped 13,407,072 → 796,384 bytes** (~16.8×) on the
   new snapshot — a stdlib-side improvement, no yantra change.
+- CI lint and format checks now cover every `.cyr` under `src/` and `programs/`
+  via `find` rather than a `src/*.cyr` glob, which had skipped `src/protocol/` —
+  so the CDP and WebDriver backends were never checked.
 - CI and the quick start still pass `cyrius lib sync --full`. Plain sync is
-  correct again now that the manifest parses in full, but `--full` is kept as the
-  belt-and-braces path; dropping it is a separate, separately-verified change.
+  correct again, but `--full` stays as the belt-and-braces path.
 
 ### Verified
 - Offline on the 6.5.29 pin against a freshly `--full`-synced `lib/`: smoke build
   + `CYRIUS_DCE=1` release-parity build, unit **2/2**, M5 **14/14**, M8 **21/21**
-  (**37 total, 0 failed**), lint **0 warnings** across `src/`, `src/protocol/`,
-  and `programs/`, fmt clean, `cyrius bench` 1/1, fuzz harness builds, all six
-  `tests/e2e/*.tcyr` compile/link clean, and `cyrius distlib` → `dist/yantra.cyr`
-  v1.0.3 (1565 lines, 27 leaf requirements). Live e2e across the five backends
-  validates in CI.
+  (**37 total, 0 failed**), lint **0 warnings** and fmt clean across all ten
+  sources, `cyrius bench` 1/1, fuzz harness builds, all six `tests/e2e/*.tcyr`
+  compile/link clean, and `cyrius distlib` → `dist/yantra.cyr` v1.0.3 (1565
+  lines, 27 leaf requirements). Live e2e across the five backends validates in CI.
 
 
 ## [1.0.2] — 2026-07-29

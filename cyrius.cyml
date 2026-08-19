@@ -16,7 +16,7 @@ entry = "programs/smoke.cyr"
 output = "build/yantra-smoke"
 
 # Arrays below are order-sensitive (single-pass compiler). Do not sort.
-# No comments inside the arrays — docs/architecture/006.
+# Keep them free of comments.
 
 [lib]
 modules = [

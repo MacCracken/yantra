@@ -6,39 +6,30 @@
 
 ## Version
 
-**1.0.3** — 2026-08-19. **Toolchain refresh — Cyrius 6.5.29** (from 6.5.1), and
-the fix for a manifest bug that had been quietly shaping this repo's CI for three
-releases. A **bracketed token inside a comment inside the `stdlib = [...]` array**
-(`[deps]`, written in an explanatory note) was read as a section header by the
-cyml parser — which does not strip comments before scanning for headers — so the
-array **terminated at that line** and cyrius saw **17 of yantra's 27** declared
-stdlib leaves. The ten dropped leaves were the whole transport chain
+**1.0.3** — 2026-08-19. **Toolchain refresh — Cyrius 6.5.29** (from 6.5.1), plus
+a `cyrius.cyml` cleanup. Comments had accumulated inside the manifest's arrays,
+and a bracketed token in one of them truncated `stdlib = [...]` — cyrius parsed
+17 of the 27 declared leaves, dropping the whole transport chain
 (`net`/`ws`/`bayan`/`sandhi`/`tls`/`dynlib`/`fdlopen`/`mmap`/`sakshi`/`sigil`).
-That single truncation is the root cause of **both** the `cyrius lib sync --full`
-requirement recorded below as a "wrapper quirk" (plain sync vendors the
-*declared* subset, so it skipped the transports) **and** the hard `cyrius distlib`
-failure on the new pin (since 6.5.14 the bundle self-check actually runs, and
-since 6.5.16 it prepends `[deps] stdlib` — a truncated list left the stdlib enums
-`WS_OPEN` / `SIG_ALG_ED25519` / `SIG_ALG_HYBRID` undefined, and an undefined
-*variable* is a parse-time abort `--allow-undef` cannot downgrade). The bundle
-itself was always correct — it builds and runs against a hand-written consumer.
-Bisected to cyrius 6.5.14 (6.5.13 clean); the parser bug is upstream and still
-present in 6.5.29 (reproducer + write-up prepared for filing). The array now
-arrays are comment-free, removing the failure mode rather than documenting
-around it, and the header's version ledger moved to the docs that own it
-(111 → 61 lines). Plain `cyrius lib sync` covers all
-ten transports again (54 files); CI keeps `--full` as belt-and-braces.
-Also fixed: **`yantra_version()` still returned `"1.0.1"`** through the 1.0.2
-release — the constant was never bumped with `VERSION`. Bundled libs advanced with
-the snapshot, measured against the 6.5.1 snapshot this release replaces:
-**sandhi 1.9.7 → 1.9.10**, **sigil 3.12.1 → 3.12.9**, **sakshi 2.4.7 → 2.4.10**,
-**bayan 1.3.0 → 1.4.2**; smoke-build static data dropped
-13,407,072 → 796,384 bytes (~16.8×). No public-API changes; all five backends
-unchanged (frozen surface, [ADR 0002](../adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)).
-All green offline on the new pin: smoke + `CYRIUS_DCE=1` release-parity build,
-unit 2/2, M5 14/14, M8 21/21 (37 total), lint 0 warnings, fmt clean, bench 1/1,
-fuzz builds, six/six e2e link-clean, distlib → v1.0.3 (1565 lines, 27 leaves).
-Live e2e (all five backends) validates in CI.
+That is why plain `cyrius lib sync` skipped the transports (recorded below since
+1.0.1 as a wrapper quirk — it was not one) and why `cyrius distlib` failed on the
+new pin once its bundle self-check began prepending the declared list; the bundle
+itself was always correct. `cyrius.cyml` is now a manifest again — both arrays
+comment-free, and the version ledger and milestone narrative that had accumulated
+in its header moved to the docs that own that material (111 → 61 lines). Plain
+`cyrius lib sync` covers all ten transports again (54 files); CI keeps `--full`
+as belt-and-braces. Also fixed: **`yantra_version()` still returned `"1.0.1"`**
+through the 1.0.2 release — the constant was never bumped with `VERSION`. Bundled
+libs advanced with the snapshot: **sandhi 1.9.7 → 1.9.10**, **sigil 3.12.1 →
+3.12.9**, **sakshi 2.4.7 → 2.4.10**, **bayan 1.3.0 → 1.4.2**; smoke-build static
+data dropped 13,407,072 → 796,384 bytes (~16.8×). CI lint/fmt now cover every
+`.cyr` under `src/` and `programs/` (the old `src/*.cyr` glob skipped
+`src/protocol/`). No public-API changes; all five backends unchanged (frozen
+surface, [ADR 0002](../adr/0002-public-api-frozen-at-0.9.0-for-1.0.0.md)). All
+green offline on the new pin: smoke + `CYRIUS_DCE=1` release-parity build, unit
+2/2, M5 14/14, M8 21/21 (37 total), lint 0 warnings, fmt clean, bench 1/1, fuzz
+builds, six/six e2e link-clean, distlib → v1.0.3 (1565 lines, 27 leaves). Live
+e2e (all five backends) validates in CI.
 
 **1.0.2** — 2026-07-29. **CDP JSON parse repair + pin 6.4.64 → 6.5.1.** bayan
 1.3.0 renamed the cstr+len JSON entry point (`json_v_parse_str` → `json_v_parse_buf`;
@@ -229,13 +220,12 @@ backends stubbed pending transport-layer depth.
   the 6.0.66 `cbt` macOS fixes; ships all platforms (x86_64/aarch64 ×
   linux/macos + windows), so it stays the cross-platform floor. Build/test/lint/
   fmt/distlib verified green on it. Vendored `lib/` is gitignored and
-  materialized with **`cyrius lib sync --full`**. *Corrected in 1.0.3:* the reason
-  plain (non-`--full`) sync skipped the transport/composite libs
+  materialized with **`cyrius lib sync --full`**. *Corrected in 1.0.3:* plain
+  (non-`--full`) sync skipped the transport/composite libs
   (`net`/`ws`/`tls`/`sandhi`/`sigil`/`sakshi`/`bayan`/`dynlib`/`fdlopen`/`mmap`)
-  was **not** a wrapper quirk — a bracketed token in a comment inside the
-  `stdlib = [...]` array truncated the manifest array, so only 17 of 27 declared
-  leaves ever reached the wrapper and plain sync faithfully vendored that subset.
-  With the comment reworded, plain sync vendors 54 files and covers all ten
+  because the manifest's `stdlib` array was truncated by a comment inside it, so
+  only 17 of 27 declared leaves reached the wrapper — not a wrapper quirk. With
+  the arrays cleaned up, plain sync vendors 54 files and covers all ten
   transports. CI/release sync steps still pass `--full` (whole snapshot) as
   belt-and-braces; dropping it is a separate, separately-verified change. *Toolchain history (6.0.x):* **6.0.63**
   fixed the
