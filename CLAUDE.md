@@ -97,7 +97,7 @@ Backend selection happens in `web.cyr` / `mobile.cyr`; protocol code never escap
 ### Closeout Pass (before minor/major bump)
 
 1. Full test suite — all `.tcyr` green
-2. `cyrius lint src/*.cyr` — no unaddressed findings
+2. `cyrius lint` — no unaddressed findings, over every `.cyr` under `src/` (including `src/protocol/`) and `programs/`
 3. Run the library's own E2E suite against live headless targets (Chromium / Android emulator) before tagging
 4. Version triple (`VERSION`, `cyrius.cyml`, CHANGELOG header) in sync
 5. `state.md` current — supported backends, dep-gap status, consumer list all match reality

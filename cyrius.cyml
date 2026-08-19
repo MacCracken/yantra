@@ -5,14 +5,14 @@ description = "Sovereign UI automation — browser + mobile, as a Cyrius library
 license = "GPL-3.0-only"
 repository = "https://github.com/MacCracken/yantra"
 language = "cyrius"
-cyrius = "6.5.1"
+cyrius = "6.5.29"
 
 # yantra is a **library** consumed by `.tcyr` test files — it is not a
 # test framework. `cyrius test` stays the runner. yantra adds the verbs:
 # `yantra_web_open`, `yantra_navigate`, `yantra_click`, `yantra_mobile_open`,
 # etc. — so a `.tcyr` file can drive a browser or a device natively.
 #
-# Transport dep chain (Cyrius stdlib, verified against the 6.4.64 snapshot):
+# Transport dep chain (Cyrius stdlib, verified against the 6.5.29 snapshot):
 #   ws.cyr     — RFC 6455 WebSocket client (full framing — CDP-ready). The
 #                only transport the M1 Chromium/CDP backend needs.
 #   sandhi     — the stdlib HTTP/1.1+2 + WebDriver/Appium RPC layer. M2
@@ -20,7 +20,7 @@ cyrius = "6.5.1"
 #                android/ios) ride `sandhi_wd_*` / `sandhi_ap_*` on it. sandhi
 #                1.4.1 fixed the `Connection: close` close-path drain that had
 #                briefly forced an in-tree client (yantra `docs/architecture/002`,
-#                resolved 0.4.0); now bundled at 1.9.0 in the 6.4.64 snapshot
+#                resolved 0.4.0); now bundled at 1.9.10 in the 6.5.29 snapshot
 #                (1.6.3 added the endpoint-keyed default TLS-policy registry).
 #                HTTPS via the libssl bridge (tls.cyr) when remote grids land;
 #                localhost drivers are plain HTTP.
@@ -31,7 +31,7 @@ cyrius = "6.5.1"
 #                `json_v_obj_get`, `json_v_arr_*`, `json_v_str/int/bool`) —
 #                full nesting/arrays/typed values; carries WebDriver/Appium
 #                JSON cleanly.
-#   sakshi (2.4.6) / sigil (3.12.0) — bundled in the stdlib snapshot.
+#   sakshi (2.4.10) / sigil (3.12.9) — bundled in the stdlib snapshot.
 #   NOTE: sigil requires `thread.cyr` + `thread_local.cyr` included
 #   before it — see `[deps] stdlib` below. yantra now includes sigil
 #   (M8) via `src/security.cyr` for sigil-verified cert pins.
@@ -79,8 +79,21 @@ stdlib = [
     "tagged",
     "assert",
     # Transports the backends ride on. Consumers of dist/yantra.cyr get
-    # these resolved from their own [deps] stdlib; listed here so the
+    # these resolved from their own stdlib list; listed here so the
     # manifest documents the real graph.
+    #
+    # DO NOT write a bracketed token (a section header shape such as
+    # deps-in-brackets or lib-in-brackets) inside this array -- not even
+    # in a comment. The cyml parser scans for section headers WITHOUT
+    # stripping comments first, so the first such token silently
+    # TERMINATES the array: every leaf below it is dropped. That is what
+    # capped this list at 17 of 27 leaves, which in turn (a) made plain
+    # `cyrius lib sync` skip the transport libs -- the real reason CI had
+    # to pass `--full` -- and (b) broke `cyrius distlib`'s bundle
+    # self-check on cyrius >= 6.5.14, which prepends this list and then
+    # hard-errors on the stdlib enums it never saw (`WS_OPEN`,
+    # `SIG_ALG_ED25519`, `SIG_ALG_HYBRID`). Confirmed present in cyrius
+    # 6.5.29; keep this list bracket-free until that parser fix ships.
     "net",      # sockets — M1 CDP discovery GET + transport
     "ws",       # M1 Chromium/CDP
     "bayan",    # base64 (ws handshake) + json (CDP/WD value tree) — base64.cyr

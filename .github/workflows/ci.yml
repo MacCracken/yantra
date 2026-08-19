@@ -24,15 +24,18 @@ jobs:
       - name: Sync vendored lib
         run: cyrius lib sync --full
 
+      # `src/*.cyr` did not match src/protocol/, so the CDP and WebDriver
+      # backends were never linted or format-checked. find (not a glob) so any
+      # future subdirectory under src/ is covered the day it lands.
       - name: Lint
         run: |
-          for f in src/*.cyr programs/*.cyr; do
+          for f in $(find src programs -name '*.cyr' | sort); do
             cyrius lint "$f"
           done
 
       - name: Format check
         run: |
-          for f in src/*.cyr programs/*.cyr; do
+          for f in $(find src programs -name '*.cyr' | sort); do
             cyrius fmt "$f" --check
           done
 
