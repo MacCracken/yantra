@@ -2,6 +2,58 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.4] — 2026-09-06
+
+### Changed
+- **Toolchain pin 6.5.29 → 6.6.0, and `src/` migrated to the Result/Option/Either
+  value form.** Cyrius 6.6.0 makes `enum Result<T, E>`, `enum Option` and
+  `enum Either` `: stack` enums: a payload variant now returns a **register pair**
+  (tag in `rax`, payload in `rdx`) and allocates zero bytes. There is no heap box,
+  so the old `tag at +0 / payload at +8` layout is gone, `payload()` and
+  `tagged_new()` are deleted, and `result_unwrap` / `err_code_of` /
+  `result_unwrap_or` / `unwrap` / `unwrap_or` each take the tag *and* the payload.
+
+  All eight affected call sites live in `src/protocol/cdp.cyr` — the three
+  `tcp_socket()` / `sock_connect()` / `sock_recv()` receivers in `_cdp_http_get`
+  and `cdp_connect`. Each single-variable bind became a pair bind that keeps the
+  original name on the **payload**, so every downstream use of the value is
+  untouched and the diff stays confined to the declaration and the tag test:
+
+  ```
+  var fd_r = tcp_socket();              var fd_r_tag, fd_r = tcp_socket();
+  if (is_err_result(fd_r) == 1) {...}   if (is_err_result(fd_r_tag) == 1) {...}
+  var fd = payload(fd_r);               var fd = fd_r;
+  ```
+
+  Audited every `load64` in `src/` for the dangerous hand-rolled box read
+  (`load64(r)` as a tag, `load64(r + 8)` as a payload) — the shape that does not
+  fail loudly, because a register pair dereferenced as a pointer is a
+  plausible-looking address. All fourteen sites are plain struct field reads
+  against `alloc()`'d records (the 32-byte session, the 16-byte WebDriver handle,
+  the 40-byte CDP handle, the 16-byte `{body_ptr, body_len}` pair returned by
+  `_cdp_http_get`); none read a Result. No `?`, `ok_via`, `err_via` or
+  `tagged_new` use existed in `src/` to migrate.
+
+- **`yantra_version()` → `"1.0.4"`**, matching `VERSION`. Kept in lockstep per the
+  1.0.3 fix; `bench_version()` in `tests/yantra.bcyr` reads through it.
+
+### Known issues
+- **`cyrius build` and `cyrius test` are red on this release, blocked upstream —
+  not by yantra.** The vendored transport folds have not completed their own
+  6.6.0 migration, and yantra includes all three. A full `cyrius test` run
+  reports 738 compile errors: **378 in `lib/sigil.cyr`, 306 in `lib/sandhi.cyr`,
+  54 in `lib/bayan.cyr`, and zero in `src/`, `tests/`, `programs/` or
+  `examples/`**. These are vendored copies refreshed by `cyrius deps`, so they
+  must not be patched here — a fix in `lib/` evaporates at the next re-vendor.
+  Upstream state at the time of this release: `bayan` 1.5.4 has migrated `src/`
+  but a stale `dist/`, so it needs only a bundle regeneration; `sigil` 3.12.15
+  and `sandhi` 1.9.15 still carry the pre-6.6.0 API in `src/` and are genuinely
+  mid-migration.
+
+  yantra's own source was verified independently of them: compiled against the
+  6.6.0 stdlib with the three folds replaced by signature-only stubs, `src/`
+  builds clean (exit 0, no errors, no warnings) and the linked binary runs.
+
 ## [Unreleased]
 
 ### Fixed
