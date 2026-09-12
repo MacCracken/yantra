@@ -5,7 +5,7 @@ description = "Sovereign UI automation — browser + mobile, as a Cyrius library
 license = "GPL-3.0-only"
 repository = "https://github.com/MacCracken/yantra"
 language = "cyrius"
-cyrius = "6.6.0"
+cyrius = "6.6.2"
 
 # Library, not a framework. Runner: `cyrius test`.
 # Deliverable: dist/yantra.cyr, built by `cyrius distlib` from [lib] modules.

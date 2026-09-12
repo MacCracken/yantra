@@ -131,7 +131,7 @@ fn main() {
     assert(pol2 != 0, "re-verify pin -> policy");
     sandhi_rpc_set_default_tls_policy("https://grid.example.com:4444", pol2);
     assert_eq(sandhi_rpc_get_default_tls_policy("https://grid.example.com:4444"), pol2,
-              "sandhi registry stores + returns the policy by base URL");
+      "sandhi registry stores + returns the policy by base URL");
 
     return assert_summary();
 }
