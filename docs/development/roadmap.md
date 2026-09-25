@@ -78,3 +78,50 @@ A real v2 scoping is a later conversation. Parked directions, biggest first:
   grows a framework.
 - **Playwright-parity auto-download** — vendor-managed browser binaries. Probably
   belongs behind an `ark` flag, not inside yantra itself.
+
+---
+
+## Moving the cyrius pin to 6.6.6
+
+**Current pin:** `cyrius = "6.6.2"` (`cyrius.cyml`).
+
+**yantra needs the pin bump and nothing else.** It drives WebDriver and Appium
+over HTTP and does no file I/O at all — zero `sys_open` / `file_open` /
+`file_write_all` / `file_read_all` / `file_exists` call sites in `src/` or
+`programs/` — so 6.6.6's Windows `O_APPEND` / `O_TRUNC` data corruption fix has
+nothing to fix here. No `CYRIUS_TARGET` guards of any kind in the tree.
+
+One 6.6.6 toolchain change does land on yantra's CI, mildly and in its favour:
+the iOS/XCUITest job runs on **`macos-latest`** (`.github/workflows/ci.yml:260`)
+and calls `cyrius lib sync --full`. 6.6.6 makes `cycc --version` print a version
+string on ARM/macOS/cx installs where it used to emit a **binary** on stdout — so
+if any CI step, here or in `.github/actions/setup-cyrius`, captures
+`cycc --version` to assert a toolchain version, it stops producing binary garbage
+on the macOS runner. Worth a glance at that action while bumping; nothing is
+known to be broken.
+
+Everything 6.6.6 turns into a new compile error was checked and is absent: 0
+structs (so neither the different-struct-copy error nor the by-value >8 B
+deep-copy change has a site), 0 `async fn`, 0 `operator` fns, 0 `ret2` / `rethi`,
+no SIMD intrinsics, no `: cstring` params. No `var` inside a top-level block. No
+own `vec_*` definitions, so `assert.cyr`'s new transitive `vec.cyr` include cannot
+collide with the 18 assert call sites. No raw `SYS_STATFS`. `lib/` holds no
+symlinks.
+
+Two non-findings, recorded so they are not re-investigated:
+
+- The `exit_code` global appears at `programs/benchmarks-mobile.cyr:113` and
+  `programs/smoke.cyr:59` — two separate entry points, never co-linked, so
+  6.6.6's "a later redeclaration now wins everywhere" flip and the new
+  different-type-co-linked-global error do not apply.
+- `lib/regression.cyr` is vendored, but yantra calls no `regression_*` verb and
+  `regression` is not in `[deps].stdlib`, so 6.6.6's exec deadline
+  (`CYRIUS_CHECK_TIMEOUT`, `-2` on timeout) and `PR_SET_PDEATHSIG` changes to that
+  module are inert here.
+
+`cyrius.lock` is absent; 6.6.6 makes `cyrius deps` fail hard when the lock cannot
+be written rather than carrying on, so run `cyrius deps` once after the bump and
+confirm it lands.
+
+After that: `cyrius test`, and re-run the Android and iOS e2e jobs — they are the
+only place yantra's real behaviour is exercised.

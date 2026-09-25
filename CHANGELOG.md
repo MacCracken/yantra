@@ -2,6 +2,28 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.5] - 2026-09-12
+
+### Changed
+
+- **Toolchain `6.6.0` → `6.6.2`.** No source change: this repo was already on the
+  value form, so the flip cost it nothing. Re-verified on every surface it ships —
+  build, tests, and any bench/fuzz/distlib target, including every
+  `[lib.<profile>]` bundle.
+
+
+### Fixed
+- **CI lint / format-check skipped `src/protocol/`.** Both steps looped over
+  `src/*.cyr programs/*.cyr`, and that glob does not descend into
+  subdirectories — so `src/protocol/cdp.cyr` and `src/protocol/webdriver.cyr`,
+  the two largest modules in the library, were never linted or format-checked on
+  any push, PR, or release gate. Both steps now loop over
+  `find src programs -name '*.cyr'`, which also picks up any future
+  subdirectory the day it lands. Pre-existing gap, not a regression, and closing
+  it changed nothing: all ten files report **0 warnings** and no format drift on
+  the 6.5.29 pin. `CLAUDE.md`'s closeout pass carried the same
+  `cyrius lint src/*.cyr` blind spot and was reworded to match.
+
 ## [1.0.4] — 2026-09-06
 
 ### Changed
@@ -55,28 +77,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   builds clean (exit 0, no errors, no warnings) and the linked binary runs.
 
 ## [Unreleased]
-
-## [1.0.5] - 2026-09-12
-
-### Changed
-
-- **Toolchain `6.6.0` → `6.6.2`.** No source change: this repo was already on the
-  value form, so the flip cost it nothing. Re-verified on every surface it ships —
-  build, tests, and any bench/fuzz/distlib target, including every
-  `[lib.<profile>]` bundle.
-
-
-### Fixed
-- **CI lint / format-check skipped `src/protocol/`.** Both steps looped over
-  `src/*.cyr programs/*.cyr`, and that glob does not descend into
-  subdirectories — so `src/protocol/cdp.cyr` and `src/protocol/webdriver.cyr`,
-  the two largest modules in the library, were never linted or format-checked on
-  any push, PR, or release gate. Both steps now loop over
-  `find src programs -name '*.cyr'`, which also picks up any future
-  subdirectory the day it lands. Pre-existing gap, not a regression, and closing
-  it changed nothing: all ten files report **0 warnings** and no format drift on
-  the 6.5.29 pin. `CLAUDE.md`'s closeout pass carried the same
-  `cyrius lint src/*.cyr` blind spot and was reworded to match.
 
 ## [1.0.3] — 2026-08-19
 
