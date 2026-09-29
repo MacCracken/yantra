@@ -6,6 +6,10 @@
 
 ## Version
 
+**1.0.6** — 2026-09-28. **Toolchain → Cyrius 6.6.9** (from 6.6.2), plus the CDP discovery request
+is sent whole or not at all (`sock_send_all`; `tests/cdp_http_short_send.tcyr`) and the CDP transport's
+allocations are checked. See CHANGELOG.
+
 **1.0.3** — 2026-08-19. **Toolchain refresh — Cyrius 6.5.29** (from 6.5.1), plus
 a `cyrius.cyml` cleanup. Comments had accumulated inside the manifest's arrays,
 and a bracketed token in one of them truncated `stdlib = [...]` — cyrius parsed

@@ -2,6 +2,35 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.6] - 2026-09-28
+
+Patch release, from cyrius 6.6.10 bite 14. Moves the toolchain pin to cyrius **6.6.9**.
+
+### Fixed
+
+- **`_cdp_http_get` dropped `sock_send`'s count.** The CDP discovery request (`GET /json/version`
+  and friends) went out through `sock_send(fd, req, o)` with the result ignored, so a failed or
+  short write — a peer reset, SO_SNDTIMEO, a signal — went on to read and parse a "response" to a
+  request that was never (fully) sent. It now goes through `sock_send_all` and returns 0, closing
+  the socket, when the request did not go out whole. The same class cyrius fixed in its own
+  `lib/http.cyr` / `lib/ws.cyr` senders at 6.6.8. **Proof:** new offline test
+  `tests/cdp_http_short_send.tcyr` — a forked child denies `write()` with its own seccomp filter
+  (asserted), a local listener answers without reading; the old code returned the canned body
+  (exit 20), the fix returns 0. qemu-user SKIPs by name. Added to CI's Test step.
+- **Unchecked `alloc` in the CDP transport:** `_cdp_set_nodelay`'s option cell and
+  `_cdp_http_get`'s request, receive and result buffers now return the failure sentinel instead of
+  writing through a refused allocation.
+
+### Changed
+
+- Toolchain pin **6.6.2 → 6.6.9**, verified before the source change (build, unit tests, bench,
+  fuzz, distlib; the Chromium/CDP and chromedriver/WebDriver e2e smokes 11/11 and 9/9 against live
+  browsers). `yantra_version()` returns `"1.0.6"`.
+- **The WebSocket frame reader yantra's CDP backend uses is the stdlib's `ws_recv`** (`lib/ws.cyr`);
+  cyrius 6.6.10 fixes it (CVE-53: unchecked short reads, a peer-chosen allocation length). yantra
+  has no reader of its own to patch — it picks the fix up at its next pin bump to 6.6.10. The
+  Chromium e2e smoke was run against the 6.6.10 `lib/ws.cyr` ahead of that: 11/11.
+
 ## [1.0.5] - 2026-09-12
 
 ### Changed

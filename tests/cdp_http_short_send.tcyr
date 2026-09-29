@@ -1,0 +1,142 @@
+# tests/cdp_http_short_send.tcyr — 1.0.6: the CDP discovery request is sent WHOLE or not at
+# all, offline (no browser needed).
+#
+# ⛔ WHY. `_cdp_http_get` called `sock_send(fd, req, o)` and dropped the count, so a failed or
+# short request write went on to read a "response" and parse it — here, a canned reply the
+# server sends without ever reading a request. It now goes through `sock_send_all` and returns
+# 0 when the request did not go out.
+#
+# HOW THE FAILURE IS FORCED (Linux). The parent listens on 127.0.0.1:<ephemeral> and, on
+# accept, writes a complete HTTP response without reading anything. A forked child installs a
+# seccomp filter that answers write() with -EPIPE — the request write is the only write the
+# child makes — ASSERTS that a pipe write now fails (so a filter that did not take cannot pass
+# as a fix), then calls `_cdp_http_get`. Exit 10 = returned 0 (refused), 20 = it returned the
+# canned body. qemu-user answers seccomp() with -ENOSYS: that SKIPs by name. Other targets run
+# only the control row.
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/bayan.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
+include "lib/thread.cyr"
+include "lib/thread_local.cyr"
+include "lib/sigil.cyr"
+include "src/main.cyr"
+include "src/runtime.cyr"
+include "src/security.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+var _REPLY = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}";
+
+#ifdef CYRIUS_TARGET_LINUX
+fn _css_ins(p, i, code, jt, jf, k) {
+    store16(p + i * 8, code);
+    store8(p + i * 8 + 2, jt);
+    store8(p + i * 8 + 3, jf);
+    store32(p + i * 8 + 4, k);
+    return 0;
+}
+
+fn _css_nr_write() {
+    #ifdef CYRIUS_ARCH_AARCH64
+    return 64;
+    #endif
+    #ifdef CYRIUS_ARCH_X86
+    return 1;
+    #endif
+}
+
+# write -> -EPIPE, everything else allowed. Returns 0 or -errno.
+fn _css_install() {
+    var prog[48];
+    _css_ins(&prog, 0, 0x20, 0, 0, 4);                      # ld [4]      arch
+    _css_ins(&prog, 1, 0x15, 0, 3, AUDIT_ARCH_NATIVE);       # jne -> allow
+    _css_ins(&prog, 2, 0x20, 0, 0, 0);                      # ld [0]      nr
+    _css_ins(&prog, 3, 0x15, 0, 1, _css_nr_write());
+    _css_ins(&prog, 4, 0x06, 0, 0, 0x00050020);             # ERRNO | EPIPE
+    _css_ins(&prog, 5, 0x06, 0, 0, 0x7FFF0000);             # ALLOW
+    var fprog[16];
+    store64(&fprog, 0);
+    store16(&fprog, 6);
+    store64(&fprog + 8, &prog);
+    var r = sys_prctl(38, 1, 0, 0, 0);                      # PR_SET_NO_NEW_PRIVS
+    if (r < 0) { return r; }
+    return sys_seccomp(1, 0, &fprog);                       # SECCOMP_SET_MODE_FILTER
+}
+
+fn _css_child(port) {
+    var pf[8];
+    if (sys_pipe(&pf) != 0) { sys_exit(99); }
+    var ir = _css_install();
+    if (ir == 0 - 38) { sys_exit(97); }
+    if (ir != 0) { sys_exit(99); }
+    if (sys_write(load32(&pf + 4), "x", 1) != 0 - 32) { sys_exit(99); }
+    var r = _cdp_http_get(port, "/json/version");
+    if (r == 0) { sys_exit(10); }
+    sys_exit(20);
+    return 0;
+}
+
+# Listen on 127.0.0.1:0; returns the fd and writes the port to `port_out`.
+fn _css_listen(port_out) {
+    var lt, lfd = tcp_socket();
+    if (is_err_result(lt) == 1) { return 0 - 1; }
+    var bt, bv = sock_bind(lfd, INADDR_LOOPBACK(), 0);
+    if (is_err_result(bt) == 1) { return 0 - 1; }
+    var qt, qv = sock_listen(lfd, 4);
+    if (is_err_result(qt) == 1) { return 0 - 1; }
+    var sa[16];
+    var sl[8];
+    store32(&sl, 16);
+    if (sys_getsockname(lfd, &sa, &sl) != 0) { return 0 - 1; }
+    store64(port_out, ((load8(&sa + 2) & 0xFF) << 8) | (load8(&sa + 3) & 0xFF));
+    return lfd;
+}
+#endif
+
+fn main() {
+    alloc_init();
+
+    #ifdef CYRIUS_TARGET_LINUX
+    test_group("1.0.6 — a discovery request that was not sent is refused, not answered");
+    var port[8];
+    var lfd = _css_listen(&port);
+    assert(lfd >= 0, "listening on 127.0.0.1:<ephemeral>");
+    var pid = sys_fork();
+    if (pid == 0) { _css_child(load64(&port)); }
+    var at, cfd = sock_accept(lfd);
+    if (is_err_result(at) == 0) {
+        sock_send_all(cfd, _REPLY, strlen(_REPLY));
+        sock_close(cfd);
+    }
+    var st[8];
+    store64(&st, 0);
+    sys_waitpid(pid, &st, 0);
+    var ex = WEXITSTATUS(load32(&st));
+    sock_close(lfd);
+    if (ex == 97) {
+        var sk = "  SKIP: seccomp() is -ENOSYS here (qemu-user); the short-send row needs a real kernel\n";
+        sys_write(1, sk, strlen(sk));
+    }
+    if (ex != 97) {
+        assert_neq(ex, 99, "the seccomp stand-in fails writes (precondition)");
+        assert_eq(ex, 10, "_cdp_http_get returns 0 (it used to parse the reply to a request it never sent — exit 20)");
+    }
+    #endif
+
+    test_group("1.0.6 — control: nothing listening is still 0");
+    assert_eq(_cdp_http_get(1, "/json/version"), 0, "a refused connect returns 0");
+
+    return assert_summary();
+}
+var ec = main();
+sys_exit(ec);
