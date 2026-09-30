@@ -50,6 +50,7 @@ jobs:
           cyrius test tests/m5.tcyr
           cyrius test tests/m8.tcyr
           cyrius test tests/cdp_http_short_send.tcyr
+          cyrius test tests/cdp_nodelay.tcyr
 
       - name: Benchmarks
         run: cyrius bench tests/yantra.bcyr

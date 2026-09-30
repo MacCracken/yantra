@@ -1,0 +1,49 @@
+# tests/cdp_nodelay.tcyr — the CDP transport's TCP_NODELAY goes through the stdlib
+# `sys_setsockopt` wrapper and allocates nothing. Offline (a bare socket, no browser).
+#
+# ⛔ WHY. `_cdp_set_nodelay` issued a raw `syscall(54, ...)` — the x86-Linux setsockopt number,
+# which the compiler warned about on the PE target — and took its option cell from `alloc(4)`,
+# which the bump allocator never gives back: one leaked cell per CDP connect. It now calls
+# `sys_setsockopt` with a stack cell. MUTATION (1.0.7, measured): the 1.0.6 body fails the
+# "allocates nothing" row (128 bytes over 16 calls). CHANGELOG [1.0.7]
+
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/bayan.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
+include "src/main.cyr"
+include "src/runtime.cyr"
+include "src/protocol/cdp.cyr"
+
+fn main() {
+    alloc_init();
+    test_group("cdp: TCP_NODELAY through sys_setsockopt");
+    var t, fd = tcp_socket();
+    assert_eq(is_err_result(t), 0, "a TCP socket to set it on");
+    if (is_err_result(t) == 0) {
+        var before = alloc_used();
+        var failed = 0;
+        var i = 0;
+        while (i < 16) {
+            if (_cdp_set_nodelay(fd) != 0) { failed = failed + 1; }
+            i = i + 1;
+        }
+        var grew = alloc_used() - before;
+        assert_eq(failed, 0, "setsockopt(IPPROTO_TCP, TCP_NODELAY) succeeds on a live socket");
+        assert_eq(grew, 0, "and allocates nothing (1.0.6 leaked an alloc(4) per call)");
+        sock_close(fd);
+    }
+    # A real call, not a constant: a descriptor that is not open is refused by the kernel.
+    assert(_cdp_set_nodelay(0 - 1) < 0, "a bad descriptor is refused (EBADF)");
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);

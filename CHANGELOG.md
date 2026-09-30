@@ -2,6 +2,45 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.7] - 2026-09-30
+
+Patch release, from cyrius 6.6.12 bite 15 (SB2, SB3). Moves the toolchain pin to cyrius
+**6.6.11**, which brings in the CVE-53-fixed WebSocket reader.
+
+### Security
+
+- **yantra's own build and tests used the WebSocket client reader that cyrius CVE-53 fixed.**
+  The CDP backend reads every DevTools reply through the stdlib's `ws_recv` (`lib/ws.cyr`).
+  At pin 6.6.9 that was the pre-6.6.10 reader, which trusted a peer-chosen frame length for its
+  allocation and read frames it had not fully received. yantra is the only repo whose own code
+  calls that reader, and the fold in cyrius has used the fixed copy since 6.6.10. This pin move
+  re-vendors the fixed `lib/ws.cyr` (and `lib/ws_server.cyr`) for the standalone build and CI,
+  and `cyrius.lock` is regenerated to match (`rm -rf lib cyrius.lock && cyrius lib sync --full &&
+  cyrius deps`; its `ws.cyr` and `ws_server.cyr` rows had carried the 6.6.9 hashes).
+
+### Fixed
+
+- **`_cdp_set_nodelay` issued a raw `syscall(54, ...)`**, the x86-Linux setsockopt number, and
+  took its option cell from `alloc(4)`, which the bump allocator never frees: one leaked cell per
+  CDP connect. It now calls the stdlib's `sys_setsockopt(fd, 6, 1, &one, 4)` with a stack cell.
+  Each target's peer maps the wrapper to its own setsockopt, so the PE build no longer warns
+  "syscall 54 ... returns -38". Behaviour was already right on Linux (x86_64 and aarch64) and
+  on both macOS targets. On Windows the call declines either way, because the stdlib's PE
+  `sys_setsockopt` returns -38, so TCP_NODELAY is still not set there. **On AGNOS the raw call
+  was wrong:** 54 is agnos's `SYS_UDP_UNBIND`, so every CDP connect issued a UDP unbind on
+  the TCP fd. The stdlib's agnos peer has no setsockopt, so `_cdp_set_nodelay` now declines
+  there with -38 and issues no syscall; its result was always ignored. New offline test
+  `tests/cdp_nodelay.tcyr` (4 assertions, added to CI's Test step): the call succeeds on a live
+  socket, a bad descriptor is refused, and 16 calls allocate nothing. The 1.0.6 body fails the
+  last row (128 bytes).
+
+### Changed
+
+- Toolchain pin **6.6.9 → 6.6.11**. Tests (`yantra` 2, `m5` 14, `m8` 21,
+  `cdp_http_short_send` 4, `cdp_nodelay` 4) are green. The Chromium/CDP e2e smoke
+  (`tests/e2e/chromium-smoke.tcyr`) is 11/11 against a live headless Chromium 153.
+  `yantra_version()` returns `"1.0.7"`. Re-folded into cyrius 6.6.12 as `lib/yantra.cyr`.
+
 ## [1.0.6] - 2026-09-28
 
 Patch release, from cyrius 6.6.10 bite 14. Moves the toolchain pin to cyrius **6.6.9**.
