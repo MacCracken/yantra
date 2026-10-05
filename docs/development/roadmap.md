@@ -125,3 +125,26 @@ confirm it lands.
 
 After that: `cyrius test`, and re-run the Android and iOS e2e jobs — they are the
 only place yantra's real behaviour is exercised.
+
+## At the cyrius 6.6.16 pin bump — follow-ups recorded by cyrius 6.6.16 (2026-10-05)
+
+⛔ **Nothing to do until cyrius 6.6.16 is tagged and out.** None of these is a breakage: the current code
+keeps working on 6.6.16.
+
+- **`_cdp_set_nodelay`'s agnos arm can go.** cyrius 6.6.16 (its N8) defines `sys_setsockopt` on agnos as a
+  -38 (-ENOSYS) decline stub — it was an undefined symbol there, so an agnos build reaching it failed to
+  link, which is the only reason for the `#ifdef CYRIUS_TARGET_AGNOS return 0 - 38; #endif` arm in
+  `src/protocol/cdp.cyr:218-225`. With cyrius ≥ 6.6.16 as the floor the arm can go; the unguarded
+  `sys_setsockopt(fd, 6, 1, &one, 4)` returns the same -38 on agnos. The comment's "its stdlib peer has
+  no setsockopt" goes stale. (Keep never using a raw `syscall(54, …)`: 54 is still agnos `udp_unbind`.)
+- **yantra calls bayan's deprecated `json_v_obj_get`** at `src/protocol/cdp.cyr` 158, 187 (three nested
+  calls), 313 and 316 (`lib/yantra.cyr` 398, 427, 553, 556 in the fold). With bayan included first (the
+  fold order every gate uses) that has warned since bayan 1.5.10 deprecated the name — 6 warnings on
+  6.6.15 and 6.6.16 alike. With yantra included BEFORE bayan, 6.6.15 was silent (a call parsed before the
+  definition) and 6.6.16 prints the same 6 (its C9: `#deprecated` now warns on every path). Measured on a
+  leaves + `sakshi sigil sandhi yantra bayan` build: 0 → 6 warnings, binary identical. The fix is here:
+  `bayan_json_v_obj_get_by_cstr` (the key is always a literal).
+- **Information only — CDP writes never raise SIGPIPE from 6.6.16.** Every `lib/net.cyr` socket write
+  (`sock_send` / `sock_send_all`) now uses `sendto(…, MSG_NOSIGNAL)` on Linux and `SO_NOSIGPIPE` on macOS
+  (cyrius CVE-74), so a browser that dies mid-request can no longer kill the yantra process. No change
+  needed.
