@@ -1,0 +1,25 @@
+# tests/yantra_raw_include.tcyr — `include "dist/yantra.cyr"` ALONE must compile.
+#
+# Since cyrius 6.6.18 every dist bundle opens with a compile-verified
+# `# Requires` block (one `include "lib/<leaf>.cyr"` per dist/yantra.deps
+# leaf), so a consumer can raw-include the bundle without declaring yantra's
+# stdlib leaves itself. Nothing else from yantra or the stdlib is included
+# except the assert framework. CI builds this with `--no-deps` (no `[deps]
+# stdlib` auto-prepend, which `cyrius test` does and which would mask a missing
+# block), after `cyrius distlib` has written the bundle. The pre-6.6.18 bundle
+# (1.0.7) fails to compile this file. CHANGELOG [1.0.8]
+
+include "lib/assert.cyr"
+include "dist/yantra.cyr"
+
+fn main() {
+    alloc_init();
+    test_group("dist/raw_include");
+    assert_eq(yantra_open_session_count(), 0, "raw include: no sessions open");
+    yantra_web_set_cdp_port(9333);
+    assert_eq(yantra_web_cdp_port(), 9333, "raw include: CDP port round-trips via dist/yantra.cyr");
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);

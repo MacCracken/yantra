@@ -58,6 +58,17 @@ jobs:
       - name: Bundle library (distlib)
         run: cyrius distlib
 
+      - name: Test (raw include of dist/yantra.cyr)
+        # 1.0.8 (cyrius 6.6.18): every dist bundle carries a compile-verified
+        # `# Requires` block, so `include "dist/yantra.cyr"` alone compiles.
+        # `--no-deps` skips the `[deps] stdlib` auto-prepend that `cyrius test`
+        # does, which would otherwise mask a missing block. Runs after distlib
+        # because dist/ is not tracked.
+        run: |
+          mkdir -p build
+          cyrius build --no-deps tests/yantra_raw_include.tcyr build/yantra-raw-include
+          ./build/yantra-raw-include
+
       - name: Upload library bundle
         uses: actions/upload-artifact@v4
         with:

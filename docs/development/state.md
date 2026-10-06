@@ -6,6 +6,12 @@
 
 ## Version
 
+**1.0.8** — 2026-10-06. **Toolchain → Cyrius 6.6.18** (from 6.6.11), the sibling
+regeneration wave: `dist/yantra.deps` is 23 compile-verified leaves (was 28) and
+`dist/yantra.cyr` opens with a `# Requires` block, so `include "dist/yantra.cyr"` alone compiles
+(`tests/yantra_raw_include.tcyr`, built `--no-deps` in CI). `tests/cdp_http_short_send.tcyr`'s
+seccomp filter also answers `sendto()`, which cyrius 6.6.16 uses for socket sends. See CHANGELOG.
+
 **1.0.7** — 2026-09-30. **Toolchain → Cyrius 6.6.11** (from 6.6.9), which re-vendors the
 CVE-53-fixed WebSocket reader the CDP backend uses (`cyrius.lock` regenerated). Also
 `_cdp_set_nodelay` uses the stdlib `sys_setsockopt` with a stack cell: no raw syscall 54 and
@@ -220,8 +226,8 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.5.29` (in `cyrius.cyml [package].cyrius`) — 1.0.3, from
-  6.5.1 (1.0.2), which came off the 6.2.x line in 1.0.1 (from 6.2.15). Earlier: refreshed off the 6.0.x line in
+- **Cyrius pin**: `6.6.18` (in `cyrius.cyml [package].cyrius`) — 1.0.8, from 6.6.11 (1.0.7),
+  6.6.9 (1.0.6), 6.5.29 (1.0.3) and 6.5.1 (1.0.2), which came off the 6.2.x line in 1.0.1 (from 6.2.15). Earlier: refreshed off the 6.0.x line in
   0.6.3 (6.2.11), then 6.2.12 (0.8.1) → 6.2.15 (0.8.3, which added the arm64-macOS
   monotonic-clock + `lib/bench.cyr` fixes found by yantra).
   Carries forward
@@ -370,6 +376,8 @@ before the src modules, for `security.cyr`).
   named short escapes, `\u00XX` control-byte fallback, UTF-8 passthrough) +
   sigil-verified cert-pin gate (F-2 — Ed25519 sign→verify→tamper-reject,
   null-guards). Offline / CI-safe.
+- `tests/yantra_raw_include.tcyr` — `include "dist/yantra.cyr"` alone compiles (the 6.6.18
+  `# Requires` block); CI builds it `--no-deps` after `cyrius distlib` (2/2).
 - `tests/e2e/chromium-smoke.tcyr` — M1 acceptance E2E. **Passing (11/11)**
   against live headless Chromium: open → navigate → url → type (value
   round-trips) → click (checkbox toggles) → click_now → close, all over CDP

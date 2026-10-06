@@ -8,9 +8,11 @@
 #
 # HOW THE FAILURE IS FORCED (Linux). The parent listens on 127.0.0.1:<ephemeral> and, on
 # accept, writes a complete HTTP response without reading anything. A forked child installs a
-# seccomp filter that answers write() with -EPIPE — the request write is the only write the
-# child makes — ASSERTS that a pipe write now fails (so a filter that did not take cannot pass
-# as a fix), then calls `_cdp_http_get`. Exit 10 = returned 0 (refused), 20 = it returned the
+# seccomp filter that answers write() AND sendto() with -EPIPE — the request write is the only
+# write the child makes — ASSERTS that both now fail on a pipe (so a filter that did not take
+# cannot pass as a fix), then calls `_cdp_http_get`. sendto() because cyrius 6.6.16 (CVE-74)
+# moved Linux socket sends from write(2) to sendto(MSG_NOSIGNAL); a write-only filter let the
+# request through and the row read exit 20 against a correct `_cdp_http_get`. CHANGELOG [1.0.8] Exit 10 = returned 0 (refused), 20 = it returned the
 # canned body. qemu-user answers seccomp() with -ENOSYS: that SKIPs by name. Other targets run
 # only the control row.
 include "lib/net.cyr"
@@ -55,18 +57,28 @@ fn _css_nr_write() {
     #endif
 }
 
-# write -> -EPIPE, everything else allowed. Returns 0 or -errno.
+fn _css_nr_sendto() {
+    #ifdef CYRIUS_ARCH_AARCH64
+    return 206;
+    #endif
+    #ifdef CYRIUS_ARCH_X86
+    return 44;
+    #endif
+}
+
+# write, sendto -> -EPIPE, everything else allowed. Returns 0 or -errno.
 fn _css_install() {
-    var prog[48];
+    var prog[56];
     _css_ins(&prog, 0, 0x20, 0, 0, 4);                      # ld [4]      arch
-    _css_ins(&prog, 1, 0x15, 0, 3, AUDIT_ARCH_NATIVE);       # jne -> allow
+    _css_ins(&prog, 1, 0x15, 0, 4, AUDIT_ARCH_NATIVE);       # jne -> allow
     _css_ins(&prog, 2, 0x20, 0, 0, 0);                      # ld [0]      nr
-    _css_ins(&prog, 3, 0x15, 0, 1, _css_nr_write());
-    _css_ins(&prog, 4, 0x06, 0, 0, 0x00050020);             # ERRNO | EPIPE
-    _css_ins(&prog, 5, 0x06, 0, 0, 0x7FFF0000);             # ALLOW
+    _css_ins(&prog, 3, 0x15, 1, 0, _css_nr_write());         # jeq -> errno
+    _css_ins(&prog, 4, 0x15, 0, 1, _css_nr_sendto());        # jne -> allow
+    _css_ins(&prog, 5, 0x06, 0, 0, 0x00050020);             # ERRNO | EPIPE
+    _css_ins(&prog, 6, 0x06, 0, 0, 0x7FFF0000);             # ALLOW
     var fprog[16];
     store64(&fprog, 0);
-    store16(&fprog, 6);
+    store16(&fprog, 7);
     store64(&fprog + 8, &prog);
     var r = sys_prctl(38, 1, 0, 0, 0);                      # PR_SET_NO_NEW_PRIVS
     if (r < 0) { return r; }
@@ -80,6 +92,7 @@ fn _css_child(port) {
     if (ir == 0 - 38) { sys_exit(97); }
     if (ir != 0) { sys_exit(99); }
     if (sys_write(load32(&pf + 4), "x", 1) != 0 - 32) { sys_exit(99); }
+    if (sys_sendto(load32(&pf + 4), "x", 1, 0x4000, 0, 0) != 0 - 32) { sys_exit(99); }
     var r = _cdp_http_get(port, "/json/version");
     if (r == 0) { sys_exit(10); }
     sys_exit(20);
