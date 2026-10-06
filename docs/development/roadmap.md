@@ -148,3 +148,13 @@ keeps working on 6.6.16.
   (`sock_send` / `sock_send_all`) now uses `sendto(…, MSG_NOSIGNAL)` on Linux and `SO_NOSIGPIPE` on macOS
   (cyrius CVE-74), so a browser that dies mid-request can no longer kill the yantra process. No change
   needed.
+
+## Recorded by cyrius 6.6.17 (2026-10-05) — for the next cyrius pin move
+
+⛔ **Nothing to do until cyrius 6.6.17 is tagged and out.** Docs-only note from the cyrius 6.6.17 lanes; each item
+is this repo's to adopt when it pins ≥ 6.6.17. Nothing here gates a cyrius release.
+
+- **The `rm -rf lib cyrius.lock && cyrius lib sync --full && cyrius deps` regeneration recipe is no longer
+  needed from 6.6.17** (cyrius t1): after a pin move, `cyrius lib sync --full` (run BEFORE `deps` / `build`)
+  leaves a lock `deps --verify` accepts. If `deps` / `build` already ran under the new pin,
+  `cyrius lib sync --full --relock` accepts the new snapshot.
