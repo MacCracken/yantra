@@ -174,3 +174,35 @@ cyrius release.
   7 is not routed: the raw poll returns -38 without sleeping, so the backoff and auto-wait loops spin there. If
   you keep the raw call, clamp `ms` to `0..0x7FFFFFFF` first. A regression row: `yantra_set_open_retry(2, -5)`
   against a refused endpoint must return within a bound.
+
+## Note from cyrius 6.6.20 — `cdp_close` double-closes the CDP socket
+
+⛔ Nothing to do until cyrius 6.6.20 is tagged and out; this does not gate it.
+
+**Title:** `cdp_close` double-closes the CDP socket once cyrius 6.6.20's `ws_close` closes it
+
+**Where:** `src/protocol/cdp.cyr:400-405` (yantra 1.0.8; folded into cyrius as `lib/yantra.cyr:665-670`)
+
+```
+fn cdp_close(cdp): i64 {
+    if (cdp == 0) { return 0; }
+    ws_close(cdp_ws(cdp));
+    sock_close(cdp_fd(cdp));
+    return 0;
+}
+```
+
+**What changed in cyrius 6.6.20:** `lib/ws.cyr`'s `ws_close` used to end with a raw
+`syscall(3, ws_fd(ws))` — a real close(2) on Linux / macOS / aarch64, but `spawn` on agnos (the
+socket was never closed and its conn slot leaked) and `CloseHandle` on Windows (which does not close
+a SOCKET). It now calls `sock_close(ws_fd(ws))`, and its doc says it closes the socket and the
+caller must not close it again.
+
+**Effect on yantra:** `cdp_close` then closes the same fd twice on every target — `closesocket`
+twice on Windows, the agnos peer's `sys_close` twice (the second one may hit a slot already reissued
+to another socket), EBADF or an fd-reuse race on Linux/macOS (Linux was already double-closing
+before 6.6.20, since `syscall(3)` was a real close there).
+
+**Fix:** drop the `sock_close(cdp_fd(cdp));` line (ws_close owns the socket close), release yantra,
+and cyrius re-vendors the fold. Also record it in cyrius `docs/development/roadmap.md` *Sibling
+follow-ups*.
