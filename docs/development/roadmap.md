@@ -158,3 +158,19 @@ is this repo's to adopt when it pins ≥ 6.6.17. Nothing here gates a cyrius rel
   needed from 6.6.17** (cyrius t1): after a pin move, `cyrius lib sync --full` (run BEFORE `deps` / `build`)
   leaves a lock `deps --verify` accepts. If `deps` / `build` already ran under the new pin,
   `cyrius lib sync --full --relock` accepts the new snapshot.
+
+## Recorded by cyrius 6.6.20 (2026-10-06) — for the next cyrius pin move
+
+⛔ **Docs-only note from the cyrius 6.6.20 closeout.** This repo adopts it in its own release. Nothing here gates a
+cyrius release.
+
+- **`_yantra_sleep_ms` (`src/runtime.cyr:44`, `lib/yantra.cyr:131` in the cyrius fold) passes `ms` to
+  `poll(NULL, 0, ms)` unguarded.** poll's timeout is a C `int`, and a negative value means "no limit". So a
+  negative `ms` blocks for ever on Linux and macOS, and a value above INT_MAX sleeps only its low 32 bits.
+  `yantra_set_open_retry(attempts, backoff_ms)` lets a caller pass a negative backoff, and `_yantra_backoff`
+  multiplies it, so the open retry path can hang. cyrius 6.6.20 fixed the same shape in its stdlib `sleep_ms`
+  (`lib/chrono.cyr`, REV-LIB-PLATFORM-03). There, `ms < 0` sleeps 0 and `ms > INT_MAX` sleeps INT_MAX, on every
+  arm. The simplest fix here is to call `sleep_ms` instead of the raw poll. It also covers Windows, where syscall
+  7 is not routed: the raw poll returns -38 without sleeping, so the backoff and auto-wait loops spin there. If
+  you keep the raw call, clamp `ms` to `0..0x7FFFFFFF` first. A regression row: `yantra_set_open_retry(2, -5)`
+  against a refused endpoint must return within a bound.
