@@ -155,7 +155,7 @@ fn _cdp_await(cdp, want): i64 {
         if (data == 0) { tries = 1000; continue; }
         var v = json_v_parse_buf(data, strlen(data));
         if (v != 0) {
-            var idv = json_v_obj_get(v, "id");
+            var idv = bayan_json_v_obj_get_by_cstr(v, "id");
             if (idv != 0) {
                 if (json_v_is_int(idv) == 1) {
                     if (json_v_int(idv) == want) { res = v; got = 1; tries = 1000; continue; }
@@ -184,7 +184,8 @@ fn cdp_eval(cdp, js): i64 {
     ws_send_text(cdp_ws(cdp), _cdp_cmd_eval(id, js));
     var v = _cdp_await(cdp, id);
     if (v == 0) { return 0; }
-    return json_v_obj_get(json_v_obj_get(json_v_obj_get(v, "result"), "result"), "value");
+    var r = bayan_json_v_obj_get_by_cstr(bayan_json_v_obj_get_by_cstr(v, "result"), "result");
+    return bayan_json_v_obj_get_by_cstr(r, "value");
 }
 
 # Convenience: evaluate JS expected to yield a string; return it as cstr or 0.
@@ -310,10 +311,10 @@ fn _cdp_find_page_ws(arr): i64 {
     var firstws = 0;
     while (i < n) {
         var el = json_v_arr_get(arr, i);
-        var wsv = json_v_obj_get(el, "webSocketDebuggerUrl");
+        var wsv = bayan_json_v_obj_get_by_cstr(el, "webSocketDebuggerUrl");
         if (wsv != 0) {
             if (firstws == 0) { firstws = wsv; }
-            var tv = json_v_obj_get(el, "type");
+            var tv = bayan_json_v_obj_get_by_cstr(el, "type");
             if (tv != 0) {
                 if (streq(_cdp_s2c(json_v_str(tv)), "page") == 1) { found = wsv; i = n; continue; }
             }
