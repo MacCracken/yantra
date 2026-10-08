@@ -13,7 +13,7 @@ regeneration wave: `dist/yantra.deps` is 23 compile-verified leaves (was 28) and
 seccomp filter also answers `sendto()`, which cyrius 6.6.16 uses for socket sends. See CHANGELOG.
 
 **1.0.7** — 2026-09-30. **Toolchain → Cyrius 6.6.11** (from 6.6.9), which re-vendors the
-CVE-53-fixed WebSocket reader the CDP backend uses (`cyrius.lock` regenerated). Also
+CYRIUS-2026-0011-fixed WebSocket reader the CDP backend uses (`cyrius.lock` regenerated). Also
 `_cdp_set_nodelay` uses the stdlib `sys_setsockopt` with a stack cell: no raw syscall 54 and
 no leaked `alloc(4)` per connect (`tests/cdp_nodelay.tcyr`), and no agnos `SYS_UDP_UNBIND` (54) on every CDP connect. Chromium e2e 11/11. See CHANGELOG.
 

@@ -146,7 +146,7 @@ keeps working on 6.6.16.
   `bayan_json_v_obj_get_by_cstr` (the key is always a literal).
 - **Information only — CDP writes never raise SIGPIPE from 6.6.16.** Every `lib/net.cyr` socket write
   (`sock_send` / `sock_send_all`) now uses `sendto(…, MSG_NOSIGNAL)` on Linux and `SO_NOSIGPIPE` on macOS
-  (cyrius CVE-74), so a browser that dies mid-request can no longer kill the yantra process. No change
+  (CYRIUS-2026-0025), so a browser that dies mid-request can no longer kill the yantra process. No change
   needed.
 
 ## Recorded by cyrius 6.6.17 (2026-10-05) — for the next cyrius pin move

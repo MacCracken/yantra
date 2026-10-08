@@ -10,7 +10,7 @@
 # accept, writes a complete HTTP response without reading anything. A forked child installs a
 # seccomp filter that answers write() AND sendto() with -EPIPE — the request write is the only
 # write the child makes — ASSERTS that both now fail on a pipe (so a filter that did not take
-# cannot pass as a fix), then calls `_cdp_http_get`. sendto() because cyrius 6.6.16 (CVE-74)
+# cannot pass as a fix), then calls `_cdp_http_get`. sendto() because cyrius 6.6.16 (CYRIUS-2026-0025)
 # moved Linux socket sends from write(2) to sendto(MSG_NOSIGNAL); a write-only filter let the
 # request through and the row read exit 20 against a correct `_cdp_http_get`. CHANGELOG [1.0.8] Exit 10 = returned 0 (refused), 20 = it returned the
 # canned body. qemu-user answers seccomp() with -ENOSYS: that SKIPs by name. Other targets run
