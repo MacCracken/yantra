@@ -81,128 +81,25 @@ A real v2 scoping is a later conversation. Parked directions, biggest first:
 
 ---
 
-## Moving the cyrius pin to 6.6.6
+## cyrius 6.7.x language adoption (later; the pin is already 6.7.5)
 
-**Current pin:** `cyrius = "6.6.2"` (`cyrius.cyml`).
+Placed here by the W2 stdlib wave (2026-10-08), which took only the defects. The
+cyrius pin-move notes that stood here (6.6.6, 6.6.16, 6.6.17 and the two from 6.6.20)
+were all adopted by 1.0.9 or had gone stale, and are struck (git history keeps the text;
+the 1.0.9 CHANGELOG entry records what was adopted).
 
-**yantra needs the pin bump and nothing else.** It drives WebDriver and Appium
-over HTTP and does no file I/O at all — zero `sys_open` / `file_open` /
-`file_write_all` / `file_read_all` / `file_exists` call sites in `src/` or
-`programs/` — so 6.6.6's Windows `O_APPEND` / `O_TRUNC` data corruption fix has
-nothing to fix here. No `CYRIUS_TARGET` guards of any kind in the tree.
-
-One 6.6.6 toolchain change does land on yantra's CI, mildly and in its favour:
-the iOS/XCUITest job runs on **`macos-latest`** (`.github/workflows/ci.yml:260`)
-and calls `cyrius lib sync --full`. 6.6.6 makes `cycc --version` print a version
-string on ARM/macOS/cx installs where it used to emit a **binary** on stdout — so
-if any CI step, here or in `.github/actions/setup-cyrius`, captures
-`cycc --version` to assert a toolchain version, it stops producing binary garbage
-on the macOS runner. Worth a glance at that action while bumping; nothing is
-known to be broken.
-
-Everything 6.6.6 turns into a new compile error was checked and is absent: 0
-structs (so neither the different-struct-copy error nor the by-value >8 B
-deep-copy change has a site), 0 `async fn`, 0 `operator` fns, 0 `ret2` / `rethi`,
-no SIMD intrinsics, no `: cstring` params. No `var` inside a top-level block. No
-own `vec_*` definitions, so `assert.cyr`'s new transitive `vec.cyr` include cannot
-collide with the 18 assert call sites. No raw `SYS_STATFS`. `lib/` holds no
-symlinks.
-
-Two non-findings, recorded so they are not re-investigated:
-
-- The `exit_code` global appears at `programs/benchmarks-mobile.cyr:113` and
-  `programs/smoke.cyr:59` — two separate entry points, never co-linked, so
-  6.6.6's "a later redeclaration now wins everywhere" flip and the new
-  different-type-co-linked-global error do not apply.
-- `lib/regression.cyr` is vendored, but yantra calls no `regression_*` verb and
-  `regression` is not in `[deps].stdlib`, so 6.6.6's exec deadline
-  (`CYRIUS_CHECK_TIMEOUT`, `-2` on timeout) and `PR_SET_PDEATHSIG` changes to that
-  module are inert here.
-
-`cyrius.lock` is absent; 6.6.6 makes `cyrius deps` fail hard when the lock cannot
-be written rather than carrying on, so run `cyrius deps` once after the bump and
-confirm it lands.
-
-After that: `cyrius test`, and re-run the Android and iOS e2e jobs — they are the
-only place yantra's real behaviour is exercised.
-
-## At the cyrius 6.6.16 pin bump — follow-ups recorded by cyrius 6.6.16 (2026-10-05)
-
-⛔ **Nothing to do until cyrius 6.6.16 is tagged and out.** None of these is a breakage: the current code
-keeps working on 6.6.16.
-
-- **`_cdp_set_nodelay`'s agnos arm can go.** cyrius 6.6.16 (its N8) defines `sys_setsockopt` on agnos as a
-  -38 (-ENOSYS) decline stub — it was an undefined symbol there, so an agnos build reaching it failed to
-  link, which is the only reason for the `#ifdef CYRIUS_TARGET_AGNOS return 0 - 38; #endif` arm in
-  `src/protocol/cdp.cyr:218-225`. With cyrius ≥ 6.6.16 as the floor the arm can go; the unguarded
-  `sys_setsockopt(fd, 6, 1, &one, 4)` returns the same -38 on agnos. The comment's "its stdlib peer has
-  no setsockopt" goes stale. (Keep never using a raw `syscall(54, …)`: 54 is still agnos `udp_unbind`.)
-- **yantra calls bayan's deprecated `json_v_obj_get`** at `src/protocol/cdp.cyr` 158, 187 (three nested
-  calls), 313 and 316 (`lib/yantra.cyr` 398, 427, 553, 556 in the fold). With bayan included first (the
-  fold order every gate uses) that has warned since bayan 1.5.10 deprecated the name — 6 warnings on
-  6.6.15 and 6.6.16 alike. With yantra included BEFORE bayan, 6.6.15 was silent (a call parsed before the
-  definition) and 6.6.16 prints the same 6 (its C9: `#deprecated` now warns on every path). Measured on a
-  leaves + `sakshi sigil sandhi yantra bayan` build: 0 → 6 warnings, binary identical. The fix is here:
-  `bayan_json_v_obj_get_by_cstr` (the key is always a literal).
-- **Information only — CDP writes never raise SIGPIPE from 6.6.16.** Every `lib/net.cyr` socket write
-  (`sock_send` / `sock_send_all`) now uses `sendto(…, MSG_NOSIGNAL)` on Linux and `SO_NOSIGPIPE` on macOS
-  (CYRIUS-2026-0025), so a browser that dies mid-request can no longer kill the yantra process. No change
-  needed.
-
-## Recorded by cyrius 6.6.17 (2026-10-05) — for the next cyrius pin move
-
-⛔ **Nothing to do until cyrius 6.6.17 is tagged and out.** Docs-only note from the cyrius 6.6.17 lanes; each item
-is this repo's to adopt when it pins ≥ 6.6.17. Nothing here gates a cyrius release.
-
-- **The `rm -rf lib cyrius.lock && cyrius lib sync --full && cyrius deps` regeneration recipe is no longer
-  needed from 6.6.17** (cyrius t1): after a pin move, `cyrius lib sync --full` (run BEFORE `deps` / `build`)
-  leaves a lock `deps --verify` accepts. If `deps` / `build` already ran under the new pin,
-  `cyrius lib sync --full --relock` accepts the new snapshot.
-
-## Recorded by cyrius 6.6.20 (2026-10-06) — for the next cyrius pin move
-
-⛔ **Docs-only note from the cyrius 6.6.20 closeout.** This repo adopts it in its own release. Nothing here gates a
-cyrius release.
-
-- **`_yantra_sleep_ms` (`src/runtime.cyr:44`, `lib/yantra.cyr:131` in the cyrius fold) passes `ms` to
-  `poll(NULL, 0, ms)` unguarded.** poll's timeout is a C `int`, and a negative value means "no limit". So a
-  negative `ms` blocks for ever on Linux and macOS, and a value above INT_MAX sleeps only its low 32 bits.
-  `yantra_set_open_retry(attempts, backoff_ms)` lets a caller pass a negative backoff, and `_yantra_backoff`
-  multiplies it, so the open retry path can hang. cyrius 6.6.20 fixed the same shape in its stdlib `sleep_ms`
-  (`lib/chrono.cyr`, REV-LIB-PLATFORM-03). There, `ms < 0` sleeps 0 and `ms > INT_MAX` sleeps INT_MAX, on every
-  arm. The simplest fix here is to call `sleep_ms` instead of the raw poll. It also covers Windows, where syscall
-  7 is not routed: the raw poll returns -38 without sleeping, so the backoff and auto-wait loops spin there. If
-  you keep the raw call, clamp `ms` to `0..0x7FFFFFFF` first. A regression row: `yantra_set_open_retry(2, -5)`
-  against a refused endpoint must return within a bound.
-
-## Note from cyrius 6.6.20 — `cdp_close` double-closes the CDP socket
-
-⛔ Nothing to do until cyrius 6.6.20 is tagged and out; this does not gate it.
-
-**Title:** `cdp_close` double-closes the CDP socket once cyrius 6.6.20's `ws_close` closes it
-
-**Where:** `src/protocol/cdp.cyr:400-405` (yantra 1.0.8; folded into cyrius as `lib/yantra.cyr:665-670`)
-
-```
-fn cdp_close(cdp): i64 {
-    if (cdp == 0) { return 0; }
-    ws_close(cdp_ws(cdp));
-    sock_close(cdp_fd(cdp));
-    return 0;
-}
-```
-
-**What changed in cyrius 6.6.20:** `lib/ws.cyr`'s `ws_close` used to end with a raw
-`syscall(3, ws_fd(ws))` — a real close(2) on Linux / macOS / aarch64, but `spawn` on agnos (the
-socket was never closed and its conn slot leaked) and `CloseHandle` on Windows (which does not close
-a SOCKET). It now calls `sock_close(ws_fd(ws))`, and its doc says it closes the socket and the
-caller must not close it again.
-
-**Effect on yantra:** `cdp_close` then closes the same fd twice on every target — `closesocket`
-twice on Windows, the agnos peer's `sys_close` twice (the second one may hit a slot already reissued
-to another socket), EBADF or an fd-reuse race on Linux/macOS (Linux was already double-closing
-before 6.6.20, since `syscall(3)` was a real close there).
-
-**Fix:** drop the `sock_close(cdp_fd(cdp));` line (ws_close owns the socket close), release yantra,
-and cyrius re-vendors the fold. Also record it in cyrius `docs/development/roadmap.md` *Sibling
-follow-ups*.
+- **TCP_NODELAY on Windows.** The CDP transport's `_cdp_set_nodelay` gets -ENOSYS on
+  Windows, where the stdlib `sys_setsockopt` is a stub, so Nagle stays on there. Adopt a
+  portable `sock_set_nodelay` once cyrius ships one.
+- **`loop` and real `break`.** The wait and retry loops emulate `break` with a flag or a
+  `tries = LIMIT; continue;` (CLAUDE.md's old "`break` with `var` declarations is
+  unreliable" rule). Re-check that rule against the 6.7.x compiler, then sweep to
+  `loop { … break; }` / `break`.
+- **if-expressions.** The W2 survey counted four assign-in-both-branches sites that could
+  become if-expressions. Optional and cosmetic.
+- **Public consts or an enum.** `YANTRA_ERR_*` and the kind / transport tags are public
+  vars. Making them `const` (or an enum) changes the kind of public names, so it waits
+  for a minor.
+- **A Transport trait.** CDP, WebDriver and Appium share a session shape. Once cyrius
+  ships `dyn`, a trait could replace the transport-tag dispatch in `web.cyr` /
+  `mobile.cyr` without touching the public verbs.
