@@ -1,0 +1,82 @@
+# tests/open_retry_backoff.tcyr — 1.0.9: the open-retry backoff and the auto-wait sleep go
+# through the stdlib's `sleep_ms`, offline (no browser needed).
+#
+# ⛔ WHY. `_yantra_sleep_ms` was a raw `syscall(7, 0, 0, ms)`, i.e. poll(NULL, 0, ms). poll reads
+# a negative timeout as "no limit", so `yantra_set_open_retry(2, -5)` turned the first failed
+# connect's backoff into a hang. And syscall 7 is not routed on Windows, so a sleep there did
+# not sleep. The stdlib's `sleep_ms` clamps `ms` to 0..INT_MAX and is Sleep on Windows.
+# CHANGELOG [1.0.9]
+#
+# Row 1 (Linux; it needs fork): a forked child opens "chromium" against a refused port with
+# open_retry(2, -5). The parent gives it 5 s, then kills it. Exit 10 = the open returned 0 with
+# YANTRA_ERR_CONNECT; a hang is killed and reads -1.
+# Row 2 (every target): `_yantra_sleep_ms(200)` blocks for at least 150 ms.
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/bayan.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
+include "src/main.cyr"
+include "src/runtime.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+#ifdef CYRIUS_TARGET_LINUX
+fn _orb_child() {
+    yantra_set_open_retry(2, 0 - 5);
+    yantra_web_set_cdp_port(1);                 # nothing listens: the connect is refused
+    var s = yantra_web_open("chromium");
+    if (s == 0 && yantra_last_error() == YANTRA_ERR_CONNECT) { sys_exit(10); }
+    sys_exit(20);
+    return 0;
+}
+#endif
+
+fn main() {
+    alloc_init();
+
+    #ifdef CYRIUS_TARGET_LINUX
+    test_group("1.0.9 — a negative open backoff returns instead of hanging");
+    var pid = sys_fork();
+    if (pid == 0) { _orb_child(); }
+    assert(pid > 0, "fork");
+    var st[8];
+    store64(&st, 0);
+    var t0 = clock_now_ms();
+    var ex = 0 - 1;
+    var waiting = 1;
+    while (waiting == 1) {
+        var w = sys_waitpid(pid, &st, 1);       # WNOHANG
+        if (w == pid) {
+            ex = WEXITSTATUS(load32(&st));
+            waiting = 0;
+        } elif (clock_now_ms() - t0 > 5000) {
+            sys_kill(pid, 9);
+            sys_waitpid(pid, &st, 0);
+            waiting = 0;
+        } else {
+            sleep_ms(20);
+        }
+    }
+    assert_eq(ex, 10, "open_retry(2, -5) on a refused port returns 0 / CONNECT within 5 s (it hung in poll)");
+    #endif
+
+    test_group("1.0.9 — a sleep sleeps");
+    var t1 = clock_now_ms();
+    _yantra_sleep_ms(200);
+    var el = clock_now_ms() - t1;
+    assert(el >= 150, "_yantra_sleep_ms(200) blocks ~200 ms (on Windows it returned at once)");
+
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);
