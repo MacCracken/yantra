@@ -1,0 +1,59 @@
+# tests/cdp_close_once.tcyr — 1.0.9: `cdp_close` closes the CDP socket once, offline (no
+# browser needed).
+#
+# ⛔ WHY. `cdp_close` called `ws_close`, which closes the WebSocket's socket, and then
+# `sock_close(cdp_fd(cdp))` on the same fd. In a threaded consumer another thread can be handed
+# that fd number between the two closes, and the second close then closes ITS fd. The test plays
+# that thread: the session's WebSocket holds a socket, and the fd the second close would reach is
+# a pipe the test still owns. Mutation: restoring the `sock_close(cdp_fd(cdp))` closes the pipe,
+# and the write row fails. CHANGELOG [1.0.9]
+include "lib/net.cyr"
+include "lib/mmap.cyr"
+include "lib/fnptr.cyr"
+include "lib/dynlib.cyr"
+include "lib/fdlopen.cyr"
+include "lib/bayan.cyr"
+include "lib/hashmap.cyr"
+include "lib/tls.cyr"
+include "lib/ws.cyr"
+include "lib/sakshi.cyr"
+include "lib/sandhi.cyr"
+include "src/main.cyr"
+include "src/runtime.cyr"
+include "src/protocol/cdp.cyr"
+include "src/protocol/webdriver.cyr"
+include "src/web.cyr"
+include "src/mobile.cyr"
+
+fn main() {
+    alloc_init();
+
+    test_group("1.0.9 — cdp_close closes the socket once");
+    var st, sfd = tcp_socket();
+    assert_eq(is_err_result(st), 0, "a socket for the session's WebSocket");
+    var pf[8];
+    assert_eq(sys_pipe(&pf), 0, "a pipe standing in for another thread's fd");
+    var rfd = load32(&pf);
+    var wfd = load32(&pf + 4);
+
+    var cdp = alloc(40);
+    store64(cdp, ws_new(sfd));
+    store64(cdp + 8, wfd);                      # the number the second close would reach
+    store64(cdp + 16, 0);
+    store64(cdp + 24, 0);
+    store64(cdp + 32, 0);
+    cdp_close(cdp);
+
+    assert_eq(sys_write(wfd, "x", 1), 1, "the other fd is untouched (the second close used to close it)");
+    assert(sys_fcntl(sfd, 1, 0) < 0, "the session's socket is closed, by ws_close");
+    sys_close(rfd);
+    sys_close(wfd);
+
+    test_group("1.0.9 — cdp_close(0) is safe");
+    assert_eq(cdp_close(0), 0, "cdp_close(0) returns 0");
+
+    return assert_summary();
+}
+
+var exit_code = main();
+syscall(60, exit_code);

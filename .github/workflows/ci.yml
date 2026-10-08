@@ -52,6 +52,7 @@ jobs:
           cyrius test tests/cdp_http_short_send.tcyr
           cyrius test tests/cdp_nodelay.tcyr
           cyrius test tests/open_retry_backoff.tcyr
+          cyrius test tests/cdp_close_once.tcyr
 
       - name: Benchmarks
         run: cyrius bench tests/yantra.bcyr

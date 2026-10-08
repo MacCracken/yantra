@@ -396,10 +396,12 @@ fn cdp_connect(port): i64 {
     return cdp;
 }
 
-# Close the WebSocket and socket. Safe on 0.
+# Close the WebSocket, which closes its socket. Safe on 0.
+# `ws_close` closes `ws_fd`, the same fd as `cdp_fd`; through 1.0.8 this closed it
+# a second time, and in a threaded consumer that number could already belong to
+# an fd another thread had just opened. CHANGELOG [1.0.9]
 fn cdp_close(cdp): i64 {
     if (cdp == 0) { return 0; }
     ws_close(cdp_ws(cdp));
-    sock_close(cdp_fd(cdp));
     return 0;
 }
