@@ -6,6 +6,16 @@
 
 ## Version
 
+**1.0.9** — 2026-10-08. **Toolchain → Cyrius 6.7.5** (from 6.6.18), the W2 stdlib wave.
+- **Open retry and Windows sleep:** `_yantra_sleep_ms` is the stdlib `sleep_ms`, so a
+  negative open-retry backoff no longer hangs in `poll` and the auto-wait sleeps really sleep
+  on Windows (`tests/open_retry_backoff.tcyr`).
+- **CDP close:** `cdp_close` closes the CDP socket once (`tests/cdp_close_once.tcyr`).
+- **Cleanups:** the six deprecated `json_v_obj_get` calls are gone, and so is
+  `_cdp_set_nodelay`'s agnos arm.
+- **Bundle:** `dist/yantra.deps` is 14 leaves.
+- **E2E:** Chromium 11/11. See CHANGELOG.
+
 **1.0.8** — 2026-10-06. **Toolchain → Cyrius 6.6.18** (from 6.6.11), the sibling
 regeneration wave: `dist/yantra.deps` is 23 compile-verified leaves (was 28) and
 `dist/yantra.cyr` opens with a `# Requires` block, so `include "dist/yantra.cyr"` alone compiles
@@ -226,7 +236,7 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.6.18` (in `cyrius.cyml [package].cyrius`) — 1.0.8, from 6.6.11 (1.0.7),
+- **Cyrius pin**: `6.7.5` (in `cyrius.cyml [package].cyrius`) — 1.0.9, from 6.6.18 (1.0.8), 6.6.11 (1.0.7),
   6.6.9 (1.0.6), 6.5.29 (1.0.3) and 6.5.1 (1.0.2), which came off the 6.2.x line in 1.0.1 (from 6.2.15). Earlier: refreshed off the 6.0.x line in
   0.6.3 (6.2.11), then 6.2.12 (0.8.1) → 6.2.15 (0.8.3, which added the arm64-macOS
   monotonic-clock + `lib/bench.cyr` fixes found by yantra).
@@ -372,12 +382,17 @@ before the src modules, for `security.cyr`).
 - `tests/yantra.fcyr` — fuzz harness (`cyrius fuzz`), stub.
 - `tests/m5.tcyr` — M5 resilience suite (**14/14**): structured errors,
   null-guards, session registry + teardown, tracing toggle. Offline / CI-safe.
-- `tests/m8.tcyr` — M8 security suite (**14/14**): CDP JSON escaper (F-1 —
+- `tests/m8.tcyr` — M8 security suite (**21/21**): CDP JSON escaper (F-1 —
   named short escapes, `\u00XX` control-byte fallback, UTF-8 passthrough) +
   sigil-verified cert-pin gate (F-2 — Ed25519 sign→verify→tamper-reject,
   null-guards). Offline / CI-safe.
 - `tests/yantra_raw_include.tcyr` — `include "dist/yantra.cyr"` alone compiles (the 6.6.18
   `# Requires` block); CI builds it `--no-deps` after `cyrius distlib` (2/2).
+- `tests/cdp_http_short_send.tcyr` (4/4) and `tests/cdp_nodelay.tcyr` (4/4) — the CDP
+  discovery request is sent whole or refused; TCP_NODELAY through `sys_setsockopt`, no alloc.
+- `tests/open_retry_backoff.tcyr` (**3/3**, 1.0.9) — a negative open backoff returns (Linux,
+  forked child with a 5 s bound) and `_yantra_sleep_ms(200)` blocks ≥ 150 ms on every target.
+- `tests/cdp_close_once.tcyr` (**5/5**, 1.0.9) — `cdp_close` closes the CDP socket once.
 - `tests/e2e/chromium-smoke.tcyr` — M1 acceptance E2E. **Passing (11/11)**
   against live headless Chromium: open → navigate → url → type (value
   round-trips) → click (checkbox toggles) → click_now → close, all over CDP

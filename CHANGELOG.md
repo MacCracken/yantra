@@ -2,6 +2,78 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.9] - 2026-10-08
+
+Patch release in the W2 stdlib wave. It moves the toolchain pin to cyrius **6.7.5** and fixes
+two defects that cyrius recorded on this repo's roadmap at its 6.6.20 closeout. A negative
+backoff that becomes no backoff is a fix, not an API change.
+
+### Fixed
+
+- **`_yantra_sleep_ms` could hang the open retry, and did not sleep on Windows.** It was a
+  raw `syscall(7, 0, 0, ms)`, i.e. `poll(NULL, 0, ms)`.
+  - poll reads a negative timeout as "no limit". So `yantra_set_open_retry(n, -5)` made the
+    first failed connect's backoff block for ever, on Linux and macOS.
+  - syscall 7 is not routed on Windows: the PE build warned, and the call returned -38 without
+    sleeping. So the open backoff and the 1000-try auto-wait loops spun there.
+  - **The fix:** it now calls the stdlib's `sleep_ms` (`lib/chrono.cyr`), which clamps `ms`
+    to 0..INT_MAX on every target and is `Sleep` on Windows. A negative backoff means no
+    backoff.
+  - **New `tests/open_retry_backoff.tcyr`**, wired into CI:
+    - Linux: a forked child opens `chromium` against a refused port with
+      `open_retry(2, -5)`, and the parent allows it 5 s. With the raw poll restored, the child
+      hangs, is killed, and the row fails.
+    - Every target: `_yantra_sleep_ms(200)` must block for at least 150 ms. On real Windows
+      (cass), the pre-fix PE build fails this row and the fixed build passes it.
+- **`cdp_close` closed the CDP socket twice.** It called `ws_close`, which closes the
+  WebSocket's socket (since cyrius 6.6.20 through `sock_close` on every target), and then
+  called `sock_close(cdp_fd(cdp))` on the same fd.
+  - A single-threaded process saw only EBADF. In a threaded consumer, another thread could be
+    handed that fd number between the two closes, and the second close then closed that
+    thread's fd.
+  - **The fix:** `ws_close`'s close is now the only one. `cdp_fd` stays as an accessor.
+  - **New `tests/cdp_close_once.tcyr`**, wired into CI, plays that other thread: the session's
+    WebSocket holds a socket, and the fd the second close would reach is a pipe the test owns.
+    With the second close restored, the pipe's write fails with EBADF and the row fails.
+
+### Changed
+
+- **Toolchain pin 6.6.18 → 6.7.5.** `cyrius.lock` was re-locked with
+  `cyrius lib sync --full --relock` (113 rows, 55 moved). `cyrius lib sync --full` and
+  `cyrius deps --verify` are clean.
+- **The six deprecated `json_v_obj_get` calls in `src/protocol/cdp.cyr` are now
+  `bayan_json_v_obj_get_by_cstr`.** That is the function they always reached, so behaviour is
+  unchanged. Deprecation warnings in the smoke build go from 6 to 0.
+- **`_cdp_set_nodelay` drops its agnos arm.** Since cyrius 6.6.16 the agnos stdlib's
+  `sys_setsockopt` is a stub that returns -ENOSYS (as Windows' does), so the portable call
+  gives the same -38 there. The `--agnos`, `--win` and `--aarch64` smoke builds link.
+- **cyrius security ids renumbered** per cyrius's 2026-10-08 ledger: CVE-53 →
+  CYRIUS-2026-0011 and CVE-74 → CYRIUS-2026-0025, in this file, the roadmap, `state.md` and a
+  test comment.
+- **`dist/yantra.deps`: 23 → 14 compile-verified leaves.** `dist/` is not tracked; CI builds
+  it.
+  - Under 6.7.5 the bundle no longer needs `tls`, `thread`, `ct`, `freelist`, `random`,
+    `thread_local`, `keccak`, `hashmap` or `async`, because the 6.6.19 refolds of sandhi and
+    bayan carry their own requires.
+  - `chrono` stays, and is now a direct need of `_yantra_sleep_ms`. At the pin-only commit
+    the sidecar is 13 leaves.
+  - Now: `sigil ws_server chrono sakshi string alloc sandhi str fmt ws bayan syscalls net
+    result`.
+- **Roadmap:** the cyrius pin-move notes (6.6.6, 6.6.16, 6.6.17, and the two 6.6.20 ones) are
+  struck: adopted here or stale. A "cyrius 6.7.x language adoption" section places the later
+  items:
+  - Windows TCP_NODELAY, once cyrius ships `sock_set_nodelay`;
+  - a `loop` / `break` sweep;
+  - four optional if-expressions;
+  - public consts or an enum (a minor release);
+  - a Transport trait after `dyn`.
+- `yantra_version()` returns `"1.0.9"`.
+
+Tests (`yantra` 2, `m5` 14, `m8` 21, `cdp_http_short_send` 4, `cdp_nodelay` 4,
+`open_retry_backoff` 3, `cdp_close_once` 5, `yantra_raw_include` 2) are green. Lint and fmt
+are clean, and bench is 1/1. The Chromium (CDP) E2E is 11/11 against a local headless
+Chromium 153.
+
 ## [1.0.8] - 2026-10-06
 
 Patch release for the cyrius 6.6.18 sibling regeneration wave. Moves the toolchain pin to
