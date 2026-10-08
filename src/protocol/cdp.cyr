@@ -213,17 +213,14 @@ fn cdp_eval_bool(cdp, js): i64 {
 # build warned on it). The option value is a stack cell: this used to leak one
 # alloc(4) per connect. CHANGELOG [1.0.7]
 #
-# AGNOS declines with -ENOSYS: its stdlib peer has no setsockopt, and number
-# 54 there is SYS_UDP_UNBIND, so the old raw syscall unbound a UDP listener
-# instead. The result is advisory either way; the caller ignores it.
+# agnos and Windows decline with -ENOSYS: their stdlib `sys_setsockopt` peers
+# are stubs (agnos since cyrius 6.6.16, which is why the agnos arm this fn
+# carried through 1.0.8 is gone; number 54 there is SYS_UDP_UNBIND, so the old
+# raw syscall unbound a UDP listener). The result is advisory; the caller
+# ignores it. CHANGELOG [1.0.9]
 fn _cdp_set_nodelay(fd): i64 {
-    #ifdef CYRIUS_TARGET_AGNOS
-    return 0 - 38;
-    #endif
-    #ifndef CYRIUS_TARGET_AGNOS
     var one = 1;
     return sys_setsockopt(fd, 6, 1, &one, 4);
-    #endif
 }
 
 # Minimal HTTP/1.1 GET for the CDP discovery endpoint. The stdlib http_get
