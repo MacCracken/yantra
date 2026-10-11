@@ -71,6 +71,14 @@ jobs:
           cyrius build --no-deps tests/yantra_raw_include.tcyr build/yantra-raw-include
           ./build/yantra-raw-include
 
+      - name: No undefined function in any test or program build
+        # 1.0.10: an undefined function no path reaches is only a warning, so a
+        # file whose include list misses a module builds rc 0. Nine tests and
+        # programs/benchmarks.cyr lacked src/security.cyr through 1.0.9. Builds
+        # every tests/ and programs/ file (after distlib, for the raw-include
+        # test) and fails on the warning.
+        run: bash scripts/ci/no-undefined-fns.sh
+
       - name: Upload library bundle
         uses: actions/upload-artifact@v4
         with:

@@ -6,6 +6,13 @@
 
 ## Version
 
+**1.0.10** — 2026-10-11. Pin unchanged (cyrius 6.7.5); no library code changed.
+- **Include lists:** the nine tests and `programs/benchmarks.cyr` that included
+  `src/web.cyr` / `src/mobile.cyr` without `src/security.cyr` now include it, so their builds
+  no longer warn `undefined function 'yantra_tls_pin_verify_*'` (filed by cyrius).
+- **CI:** `scripts/ci/no-undefined-fns.sh` builds all 19 test and program files and fails on
+  an `undefined function` warning. See CHANGELOG.
+
 **1.0.9** — 2026-10-08. **Toolchain → Cyrius 6.7.5** (from 6.6.18), the W2 stdlib wave.
 - **Open retry and Windows sleep:** `_yantra_sleep_ms` is the stdlib `sleep_ms`, so a
   negative open-retry backoff no longer hangs in `poll` and the auto-wait sleeps really sleep
@@ -393,6 +400,10 @@ before the src modules, for `security.cyr`).
 - `tests/open_retry_backoff.tcyr` (**3/3**, 1.0.9) — a negative open backoff returns (Linux,
   forked child with a 5 s bound) and `_yantra_sleep_ms(200)` blocks ≥ 150 ms on every target.
 - `tests/cdp_close_once.tcyr` (**5/5**, 1.0.9) — `cdp_close` closes the CDP socket once.
+- `scripts/ci/no-undefined-fns.sh` (1.0.10) — CI builds every `tests/` and `programs/` file
+  (19, a floor) and fails on an `undefined function` warning. A test that includes
+  `src/web.cyr` / `src/mobile.cyr` includes `src/security.cyr` ahead of them, in the
+  `[lib] modules` order.
 - `tests/e2e/chromium-smoke.tcyr` — M1 acceptance E2E. **Passing (11/11)**
   against live headless Chromium: open → navigate → url → type (value
   round-trips) → click (checkbox toggles) → click_now → close, all over CDP

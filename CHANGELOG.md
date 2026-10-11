@@ -2,6 +2,45 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.10] - 2026-10-11
+
+Patch release. It fixes a defect that cyrius filed against this repo at its 6.7.6 fold
+(cyrius `docs/development/issues/2026-10-08-yantra-tests-miss-security-include.md`). Only
+tests, one program and CI change. The library modules do not, and the pin stays at cyrius
+**6.7.5**.
+
+### Fixed
+
+- **Ten files built with two `undefined function` warnings.** Each named a cert-pin verifier:
+  `yantra_tls_pin_verify_ed25519` and `yantra_tls_pin_verify_hybrid`.
+  - `src/web.cyr` and `src/mobile.cyr` call those verifiers, which `src/security.cyr` defines.
+  - Ten files included web / mobile but not security:
+    - the six `tests/e2e/*-smoke.tcyr` files;
+    - `tests/m5.tcyr`, `tests/cdp_close_once.tcyr` and `tests/open_retry_backoff.tcyr`;
+    - `programs/benchmarks.cyr`.
+  - No test reaches the verifiers, so every build was rc 0 and the results were right. But a
+    standing warning that looks like a real one trains readers to skip it.
+  - **The fix:** each of the ten files now includes `src/security.cyr` after
+    `src/runtime.cyr`. That is the `[lib] modules` order, so the bundle (`dist/yantra.cyr`)
+    has always had it.
+- **New CI step, `scripts/ci/no-undefined-fns.sh`.**
+  - It builds every `.tcyr`, `.bcyr` and `.fcyr` file under `tests/` and every program with
+    `cyrius build`. It fails if a build prints `undefined function`, and names the file.
+  - It runs after `cyrius distlib`, so it can also build `tests/yantra_raw_include.tcyr`.
+  - It has a floor of 19 files, so a `find` that matches nothing fails.
+  - Against 1.0.9 the step fails and names all ten files. With one include removed, it names
+    that file.
+
+### Changed
+
+- `yantra_version()` returns `"1.0.10"`.
+
+Tests (`yantra` 2, `m5` 14, `m8` 21, `cdp_http_short_send` 4, `cdp_nodelay` 4,
+`open_retry_backoff` 3, `cdp_close_once` 5, `yantra_raw_include` 2) are green. The new step
+reports 19 files clean. Lint and fmt are clean, and bench runs. The Chromium (CDP) and
+WebDriver E2E pass against a local headless Chromium 153. The Firefox, WebKit, Android and
+iOS E2E files change by one include line, and the new step builds each of them clean.
+
 ## [1.0.9] - 2026-10-08
 
 Patch release in the W2 stdlib wave. It moves the toolchain pin to cyrius **6.7.5** and fixes

@@ -43,6 +43,7 @@ include "lib/bench.cyr"
 # yantra library modules — same order as cyrius.cyml [lib] modules.
 include "src/main.cyr"
 include "src/runtime.cyr"
+include "src/security.cyr"
 include "src/protocol/cdp.cyr"
 include "src/protocol/webdriver.cyr"
 include "src/web.cyr"
