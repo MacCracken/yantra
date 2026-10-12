@@ -1,11 +1,20 @@
 # tests/cdp_nodelay.tcyr — the CDP transport's TCP_NODELAY goes through the stdlib
-# `sys_setsockopt` wrapper and allocates nothing. Offline (a bare socket, no browser).
+# `sock_set_nodelay`, really sets the option, and allocates nothing. Offline (a bare socket, no
+# browser).
 #
 # ⛔ WHY. `_cdp_set_nodelay` issued a raw `syscall(54, ...)` — the x86-Linux setsockopt number,
 # which the compiler warned about on the PE target — and took its option cell from `alloc(4)`,
-# which the bump allocator never gives back: one leaked cell per CDP connect. It now calls
+# which the bump allocator never gives back: one leaked cell per CDP connect. 1.0.7 moved it to
 # `sys_setsockopt` with a stack cell. MUTATION (1.0.7, measured): the 1.0.6 body fails the
 # "allocates nothing" row (128 bytes over 16 calls). CHANGELOG [1.0.7]
+#
+# But the raw `sys_setsockopt` is a -38 stub on Windows, so through 1.0.10 NODELAY was never set
+# there. 1.0.11 calls cyrius 6.7.9's `sock_set_nodelay`, which takes ws2_32 setsockopt on Windows.
+# The read-back rows ask getsockopt (raw: 55 on POSIX, the 0xF026 ws2_32 reroute on PE) whether
+# the option is set, so a call that returns 0 without setting it fails. MUTATIONS (1.0.11,
+# measured): with the 1.0.10 body, the PE build under wine fails the "succeeds" (16 of 16 calls
+# -38) and "reads back set" rows; a body that returns 0 fails "reads back set" and the bad-fd
+# row on Linux. CHANGELOG [1.0.11]
 
 include "lib/net.cyr"
 include "lib/mmap.cyr"
@@ -22,12 +31,36 @@ include "src/main.cyr"
 include "src/runtime.cyr"
 include "src/protocol/cdp.cyr"
 
+# TCP_NODELAY on `fd` as getsockopt reports it (0 = clear, non-zero = set), or a negative code:
+# -1000 getsockopt failed, -2000 - n an unexpected option length n. The buffer starts as a
+# sentinel, so a getsockopt that writes nothing does not read as "clear". Darwin answers
+# `t_flags & TF_NODELAY` (4), not 1; Winsock may answer a 1-byte BOOLEAN.
+fn _nd_get(fd): i64 {
+    var v[8];
+    var len[8];
+    store64(&v, 0x5A5A5A5A5A5A5A5A);
+    store64(&len, 4);
+    var r = 0;
+    #ifdef CYRIUS_TARGET_WIN
+    r = syscall(0xF026, fd, 6, 1, &v, &len) & 0xFFFFFFFF;    # ws2_32 getsockopt: an int result
+    #endif
+    #ifndef CYRIUS_TARGET_WIN
+    r = syscall(55, fd, 6, 1, &v, &len);           # getsockopt(IPPROTO_TCP, TCP_NODELAY)
+    #endif
+    if (r != 0) { return 0 - 1000; }
+    var n = load32(&len) & 0xFFFFFFFF;
+    if (n == 1) { return load8(&v) & 0xFF; }
+    if (n == 4) { return load32(&v) & 0xFFFFFFFF; }
+    return 0 - 2000 - n;
+}
+
 fn main() {
     alloc_init();
-    test_group("cdp: TCP_NODELAY through sys_setsockopt");
+    test_group("cdp: TCP_NODELAY through sock_set_nodelay");
     var t, fd = tcp_socket();
     assert_eq(is_err_result(t), 0, "a TCP socket to set it on");
     if (is_err_result(t) == 0) {
+        assert_eq(_nd_get(fd), 0, "a fresh socket reads TCP_NODELAY clear");
         var before = alloc_used();
         var failed = 0;
         var i = 0;
@@ -38,6 +71,7 @@ fn main() {
         var grew = alloc_used() - before;
         assert_eq(failed, 0, "setsockopt(IPPROTO_TCP, TCP_NODELAY) succeeds on a live socket");
         assert_eq(grew, 0, "and allocates nothing (1.0.6 leaked an alloc(4) per call)");
+        assert(_nd_get(fd) > 0, "and getsockopt reads TCP_NODELAY back set");
         sock_close(fd);
     }
     # A real call, not a constant: a descriptor that is not open is refused by the kernel.

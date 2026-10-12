@@ -6,6 +6,13 @@
 
 ## Version
 
+**1.0.11** — 2026-10-11. **Toolchain → Cyrius 6.7.9** (from 6.7.5).
+- **Windows TCP_NODELAY:** `_cdp_set_nodelay` is the stdlib `sock_set_nodelay(fd, 1)`, which
+  takes ws2_32 `setsockopt` on Windows. The raw `sys_setsockopt` it used is a -38 stub there, so
+  the CDP socket never had NODELAY on Windows (`tests/cdp_nodelay.tcyr` now reads it back).
+- **Bundle:** `dist/yantra.deps` is 12 leaves (`syscalls` drops out).
+- **E2E:** Chromium 11/11, WebDriver 9/9. See CHANGELOG.
+
 **1.0.10** — 2026-10-11. Pin unchanged (cyrius 6.7.5); no library code changed.
 - **Include lists:** the nine tests and `programs/benchmarks.cyr` that included
   `src/web.cyr` / `src/mobile.cyr` without `src/security.cyr` now include it, so their builds
@@ -243,7 +250,7 @@ backends stubbed pending transport-layer depth.
 
 ## Toolchain
 
-- **Cyrius pin**: `6.7.5` (in `cyrius.cyml [package].cyrius`) — 1.0.9, from 6.6.18 (1.0.8), 6.6.11 (1.0.7),
+- **Cyrius pin**: `6.7.9` (in `cyrius.cyml [package].cyrius`) — 1.0.11, from 6.7.5 (1.0.9), 6.6.18 (1.0.8), 6.6.11 (1.0.7),
   6.6.9 (1.0.6), 6.5.29 (1.0.3) and 6.5.1 (1.0.2), which came off the 6.2.x line in 1.0.1 (from 6.2.15). Earlier: refreshed off the 6.0.x line in
   0.6.3 (6.2.11), then 6.2.12 (0.8.1) → 6.2.15 (0.8.3, which added the arm64-macOS
   monotonic-clock + `lib/bench.cyr` fixes found by yantra).
@@ -395,8 +402,9 @@ before the src modules, for `security.cyr`).
   null-guards). Offline / CI-safe.
 - `tests/yantra_raw_include.tcyr` — `include "dist/yantra.cyr"` alone compiles (the 6.6.18
   `# Requires` block); CI builds it `--no-deps` after `cyrius distlib` (2/2).
-- `tests/cdp_http_short_send.tcyr` (4/4) and `tests/cdp_nodelay.tcyr` (4/4) — the CDP
-  discovery request is sent whole or refused; TCP_NODELAY through `sys_setsockopt`, no alloc.
+- `tests/cdp_http_short_send.tcyr` (4/4) and `tests/cdp_nodelay.tcyr` (**6/6**, 1.0.11) — the
+  CDP discovery request is sent whole or refused; TCP_NODELAY through `sock_set_nodelay`, read
+  back with getsockopt, no alloc.
 - `tests/open_retry_backoff.tcyr` (**3/3**, 1.0.9) — a negative open backoff returns (Linux,
   forked child with a 5 s bound) and `_yantra_sleep_ms(200)` blocks ≥ 150 ms on every target.
 - `tests/cdp_close_once.tcyr` (**5/5**, 1.0.9) — `cdp_close` closes the CDP socket once.

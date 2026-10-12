@@ -81,16 +81,14 @@ A real v2 scoping is a later conversation. Parked directions, biggest first:
 
 ---
 
-## cyrius 6.7.x language adoption (later; the pin is already 6.7.5)
+## cyrius 6.7.x language adoption (later; the pin is already 6.7.9)
 
 Placed here by the W2 stdlib wave (2026-10-08), which took only the defects. The
 cyrius pin-move notes that stood here (6.6.6, 6.6.16, 6.6.17 and the two from 6.6.20)
 were all adopted by 1.0.9 or had gone stale, and are struck (git history keeps the text;
-the 1.0.9 CHANGELOG entry records what was adopted).
+the 1.0.9 CHANGELOG entry records what was adopted). The TCP_NODELAY-on-Windows item is
+struck too: 1.0.11 adopted cyrius 6.7.9's `sock_set_nodelay`.
 
-- **TCP_NODELAY on Windows.** The CDP transport's `_cdp_set_nodelay` gets -ENOSYS on
-  Windows, where the stdlib `sys_setsockopt` is a stub, so Nagle stays on there. Adopt a
-  portable `sock_set_nodelay` once cyrius ships one.
 - **`loop` and real `break`.** The wait and retry loops emulate `break` with a flag or a
   `tries = LIMIT; continue;` (CLAUDE.md's old "`break` with `var` declarations is
   unreliable" rule). Re-check that rule against the 6.7.x compiler, then sweep to

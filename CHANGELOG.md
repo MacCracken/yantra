@@ -2,6 +2,52 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.11] - 2026-10-11
+
+Patch release. It moves the toolchain pin to cyrius **6.7.9** and adopts that release's
+`sock_set_nodelay`, so the CDP transport sets TCP_NODELAY on Windows for the first time. This
+closes the "TCP_NODELAY on Windows" roadmap item (cyrius
+`docs/development/issues/archived/2026-10-08-sock-set-nodelay-windows-route.md`).
+
+### Fixed
+
+- **The CDP socket never had TCP_NODELAY on Windows.** `_cdp_set_nodelay` called the stdlib's
+  raw `sys_setsockopt(fd, 6, 1, &one, 4)`. On Windows that wrapper is a stub that returns -38,
+  so Nagle stayed on and each CDP round trip could pay the ~40 ms Nagle / delayed-ACK stall.
+  `cdp_connect` ignores the result, so nothing reported it.
+  - **The fix:** `_cdp_set_nodelay(fd)` is now `sock_set_nodelay(fd, 1)` (`lib/net.cyr`,
+    cyrius 6.7.9). That helper uses ws2_32 `setsockopt` on Windows and `setsockopt`
+    elsewhere. It returns 0 or -errno. On agnos it still returns -38 and makes no syscall.
+  - **The result is still advisory.** `cdp_connect` ignores it, as before: a socket without
+    NODELAY is only slower. Windows can now see 0 where it always saw -38. No caller
+    branched on the -38.
+  - **`tests/cdp_nodelay.tcyr`: 4 → 6 assertions.** A fresh socket reads TCP_NODELAY clear,
+    and after the call getsockopt reads it set. So a call that returns 0 without setting the
+    option fails.
+    - With the 1.0.10 body, the PE build under wine fails two rows: "succeeds" (all 16 calls
+      return -38) and "reads back set". The fixed PE build passes 6/6 under wine.
+    - A body that returns 0 without a syscall fails "reads back set" and the bad-fd row on
+      Linux.
+
+### Changed
+
+- **Toolchain pin 6.7.5 → 6.7.9.** `cyrius.lock` was re-locked with
+  `cyrius lib sync --full --relock` (113 rows, 68 moved). `cyrius lib sync --full` and
+  `cyrius deps --verify` (113 verified) are clean.
+- **`dist/yantra.deps`: 13 → 12 leaves.** `syscalls` drops out. yantra's only direct use of it
+  was `sys_setsockopt`. The bundle still reaches `lib/syscalls.cyr` through `net`, `alloc`,
+  `chrono`, `ws` and `sigil`. Now: `sigil ws chrono sakshi string alloc sandhi str fmt bayan
+  net result`. `dist/` is not tracked; CI builds it.
+- **Roadmap:** the "TCP_NODELAY on Windows" item is struck as adopted.
+- `yantra_version()` returns `"1.0.11"`.
+
+Tests (`yantra` 2, `m5` 14, `m8` 21, `cdp_http_short_send` 4, `cdp_nodelay` 6,
+`open_retry_backoff` 3, `cdp_close_once` 5, `yantra_raw_include` 2) are green.
+`scripts/ci/no-undefined-fns.sh` reports 19 files clean. Lint and fmt are clean, and bench
+runs. The Chromium (CDP) E2E is 11/11 and the WebDriver E2E 9/9, against a local headless
+Chromium 153. The `--win`, `--agnos` and `--aarch64` smoke builds link, and the PE builds warn
+on nothing in yantra's own files.
+
 ## [1.0.10] - 2026-10-11
 
 Patch release. It fixes a defect that cyrius filed against this repo at its 6.7.6 fold
